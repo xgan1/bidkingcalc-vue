@@ -4,13 +4,7 @@ import CountInferenceSection from './components/CountInferenceSection.vue';
 import GameEstimatorSection from './components/GameEstimatorSection.vue';
 import AboutSection from './components/AboutSection.vue';
 
-/**
- * 应用入口页面
- *
- * 这里保持“薄”：只负责页面布局与组合组件。
- * - 具体表单交互：在各自组件中
- * - 核心算法：在 `src/utils/calculators.ts`
- */
+/** 根布局：页签切换、主题；业务在子组件与 `src/utils/calculators.ts`。 */
 
 type ModuleTab = 'victor' | 'ahmed' | 'about';
 const activeTab = ref<ModuleTab>('victor');

@@ -1,8 +1,5 @@
 <script setup lang="ts">
-/**
- * 说明与简要攻略：石油王段落在前，老头段落在后；道具名与输入框对应见正文。
- * 金色与橙色在游戏里多指同一档；本页与计算器统一称「橙色」。
- */
+/** 使用说明：石油王在前、老头在后；金/橙档位统一称「橙色」。 */
 </script>
 
 <template>
@@ -27,21 +24,26 @@
     <div class="about-images">
       <figure>
         <img src="/images/ahmed-tools.png" alt="艾哈迈德（石油王）道具列表截图" loading="lazy" />
-        <figcaption>石油王道具示例；其中<strong>普品扫描、普品均格、良品存量</strong>为必带。</figcaption>
+        <figcaption>
+          石油王三件普通道具示例；必带为<strong>普品均格、良品存量、普品扫描</strong>。计算器「石油王」页按<strong>第一 → 第二 → 第三回合</strong>依次对应填写：<strong>白绿平均格数 → 蓝色总数量 → 白绿总占位</strong>（局内可先买后买任意一件）。
+        </figcaption>
       </figure>
     </div>
 
-    <p>玩<strong>石油王</strong>时，三回合按顺序用下面三件道具。</p>
+    <p>
+      玩<strong>石油王</strong>时，<strong>技能被动触发顺序</strong>固定为三回合依次给出<strong>总藏品数量 → 橙色平均格数 → 紫色平均格数</strong>。
+      三件普通道具在计算器里的<strong>填写顺序</strong>为<strong>普品均格 → 良品存量 → 普品扫描</strong>，与「石油王」页<strong>第一、二、三回合</strong>中的道具栏一一对应（白绿平均格数 → 蓝色总数量 → 白绿总占位）；局内可先买其中任意一件，已填项会参与推算。
+    </p>
 
     <ol class="about-round-list">
       <li>
-        <strong>第一回合：</strong><strong>普品扫描</strong> → 填<strong>白绿总占位</strong>（道具） → 填<strong>总藏品数量</strong>（技能）。
+        <strong>第一回合：</strong>被动：<strong>总藏品数量</strong>（技能）→ 使用<strong>普品均格</strong>填<strong>白绿平均格数</strong>（道具）。
       </li>
       <li>
-        <strong>第二回合：</strong><strong>普品均格</strong> → 填<strong>白绿平均格数</strong>（道具） → 填<strong>橙色平均格数</strong>（技能）。
+        <strong>第二回合：</strong>被动：<strong>橙色平均格数</strong>（技能）→ 使用<strong>良品存量</strong>填<strong>蓝色总数量</strong>（道具）。
       </li>
       <li>
-        <strong>第三回合：</strong><strong>良品存量</strong> → 填<strong>蓝色总数量</strong>（道具） → 填<strong>紫色平均格数</strong>（技能）。
+        <strong>第三回合：</strong>被动：<strong>紫色平均格数</strong>（技能）→ 使用<strong>普品扫描</strong>填<strong>白绿总占位</strong>（道具）。
       </li>
     </ol>
 

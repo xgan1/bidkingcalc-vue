@@ -3,11 +3,7 @@ import { computed, ref } from 'vue';
 import type { RoundingMode } from '../types/calculator';
 import { getPossibleCounts } from '../utils/calculators';
 
-/**
- * ①/② 基础反推模块（可复用组件）
- *
- * 提交时做格式校验；合法但无解时给出与「抄错/规则选错」相关的提示。
- */
+/** 维克托线：按 `RoundingMode` 调用 `getPossibleCounts`。 */
 
 interface Props {
   title: string;
@@ -29,7 +25,6 @@ function parseAverageInputStrict(raw: string): ParseAvgResult {
     return { ok: false, message: '请输入数值。' };
   }
 
-  // 统一要求显式写小数点，避免 87 被误判为 0.87
   if (/^\d+$/.test(t) && !t.includes('.')) {
     return { ok: false, message: '请显式输入两位小数（例如 0.87），不要只输入整数 87。' };
   }

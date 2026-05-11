@@ -1,12 +1,6 @@
 import type { GameEstimatorInput, GameEstimatorResult, RoundingMode, ValueCombo } from '../types/calculator';
 
-/**
- * 计算器核心算法（纯函数）
- *
- * 设计目标：
- * - 不依赖 DOM / Vue / 浏览器环境（便于单测、复用、迁移）
- * - UI 只是把表单数据转成输入类型，然后调用这里的函数得到结果
- */
+/** 纯函数业务逻辑，无 Vue / DOM 依赖。 */
 
 const EPSILON = 1e-12;
 const DEFAULT_RED_VALUE = 150000;
@@ -14,28 +8,13 @@ const DEFAULT_ORANGE_VALUE = 30000;
 const DEFAULT_PURPLE_VALUE = 10000;
 
 /**
- * 反推“可能的数量 N”
- *
- * 背景：游戏界面展示的是“平均值 A”（通常保留两位小数），但它可能是：
- * - 截断显示：直接舍去到两位小数（例如 0.459 -> 0.45）
- * - 四舍五入显示：四舍五入到两位小数
- *
- * 我们枚举 N=1..max，判断是否存在某个整数“总量 S”（例如总格数）满足显示规则。
- *
- * 判定方法（区间法）：
- * - 截断：真实平均落在 [A, A+0.01) 才会显示为 A
- *        => S / N ∈ [A, A+0.01)
- *        => S ∈ [A*N, (A+0.01)*N)
- * - 四舍五入：真实平均落在 [A-0.005, A+0.005) 显示为 A
- *        => S ∈ [(A-0.005)*N, (A+0.005)*N)
- *
- * 如果该区间中存在整数 S，则 N 是可能的。
+ * 由显示平均值 `avg` 反推可能件数 N：存在整数总量 S 使 S/N 在 `mode` 下显示为 `avg`。
+ * truncate：S/N ∈ [avg, avg+0.01)；round：按两位半上舍入反推。
  */
 export function getPossibleCounts(avg: number, mode: RoundingMode, max = 40): number[] {
   if (!Number.isFinite(avg) || avg < 0 || max < 1) {
     return [];
   }
-  // 游戏规则：当平均值明确为 0 时，可能数量就是 0。
   if (avg === 0) {
     return [0];
   }
@@ -55,17 +34,22 @@ export function getPossibleCounts(avg: number, mode: RoundingMode, max = 40): nu
   return result;
 }
 
+/** 石油王：白绿件数、橙紫红余量、各档候选与估值统计；支持分步填写。 */
 export function estimateGame(input: GameEstimatorInput): GameEstimatorResult {
-  /**
-   * “石油王信息推算器”整体流程：
-   * 1) 先估算白绿数量（wgCount），并扣除蓝色得到剩余 remain（= 橙+紫+红）
-   * 2) 根据橙/紫的平均值分别反推可能的数量集合（若有“确定数量/总格数”会进一步过滤）
-   * 3) 枚举 (橙,紫)，由红 = remain - 橙 - 紫 得到所有合法组合
-   * 4) 对所有合法组合计算价值（红、橙按固定单价），输出范围/期望/样例组合
-   */
+  const totalItems = normalizePositiveInt(input.totalItems);
+  const blueCount = normalizeNonNegativeInt(input.blueCount);
+
   const wgCount = getWgCount(input.wgSlots, input.wgAvg);
-  const remain = getRemainCount(input.totalItems, input.blueCount, wgCount);
-  const upperBound = wgCount === null ? undefined : Math.max(0, input.totalItems - wgCount);
+  const remain = getRemainCount(totalItems, blueCount, wgCount);
+  const remainUpperBound = getRemainUpperBound(totalItems, blueCount, wgCount);
+
+  const colorUpperBound = getColorCountUpperBound(totalItems, blueCount, wgCount);
+
+  const DEFAULT_EXPECTED_RATIO = 0.66;
+  const expectedPurpleRatio = Number.isFinite(input.expectedPurpleRatio) ? (input.expectedPurpleRatio as number) : DEFAULT_EXPECTED_RATIO;
+  const expectedOrangeAmongRORatio = Number.isFinite(input.expectedOrangeAmongRORatio)
+    ? (input.expectedOrangeAmongRORatio as number)
+    : DEFAULT_EXPECTED_RATIO;
 
   const orangeList = getColorCandidates({
     avg: input.orangeAvg,
@@ -73,7 +57,7 @@ export function estimateGame(input: GameEstimatorInput): GameEstimatorResult {
     fixedCount: input.orangeFixedCount,
     totalSlots: input.orangeTotalSlots,
     remain,
-    upperBound,
+    upperBound: colorUpperBound,
   });
 
   const purpleList = getColorCandidates({
@@ -82,7 +66,7 @@ export function estimateGame(input: GameEstimatorInput): GameEstimatorResult {
     fixedCount: input.purpleFixedCount,
     totalSlots: input.purpleTotalSlots,
     remain,
-    upperBound,
+    upperBound: colorUpperBound,
   });
 
   const redUnitValue = Number.isFinite(input.redUnitValue) ? (input.redUnitValue as number) : DEFAULT_RED_VALUE;
@@ -114,13 +98,13 @@ export function estimateGame(input: GameEstimatorInput): GameEstimatorResult {
   }
 
   const sortedCombos = [...combos].sort((a, b) => a.value - b.value);
-  const expectedCombo = getExpectedCombo(sortedCombos);
+  const expectedCombo = getExpectedCombo(sortedCombos, expectedPurpleRatio, expectedOrangeAmongRORatio);
 
   return {
     wgCount,
     remain,
-    // 若已能枚举合法组合，则以组合投影结果为准，避免显示组合上不可能的值。
-    // 若暂时无法枚举组合（例如只填了第二回合橙色信息），仍先展示单色候选。
+    remainUpperBound,
+    // 有组合时列表取组合投影，否则退回单色反推结果。
     orangeList: comboOrangeList.length > 0 ? comboOrangeList : [...orangeList].sort((a, b) => a - b),
     purpleList: comboPurpleList.length > 0 ? comboPurpleList : [...purpleList].sort((a, b) => a - b),
     redList: [...redSet].sort((a, b) => a - b),
@@ -132,15 +116,59 @@ export function estimateGame(input: GameEstimatorInput): GameEstimatorResult {
   };
 }
 
+function normalizePositiveInt(value: number | undefined): number | undefined {
+  if (!Number.isFinite(value) || (value as number) <= 0) {
+    return undefined;
+  }
+  return Math.trunc(value as number);
+}
+
+function normalizeNonNegativeInt(value: number | undefined): number | undefined {
+  if (!Number.isFinite(value) || (value as number) < 0) {
+    return undefined;
+  }
+  return Math.trunc(value as number);
+}
+
+/** 单色候选上界：已知白绿时为 T−WG；仅知蓝时为 T−B。 */
+function getColorCountUpperBound(
+  totalItems: number | undefined,
+  blueCount: number | undefined,
+  wgCount: number | null,
+): number | undefined {
+  if (wgCount !== null && totalItems !== undefined) {
+    return Math.max(0, totalItems - wgCount);
+  }
+  if (wgCount === null && totalItems !== undefined && blueCount !== undefined) {
+    return Math.max(0, totalItems - blueCount);
+  }
+  return undefined;
+}
+
+/** `remain` 不可算时给 UI 的上界：仅 (T,B) 或已知 WG 但未填蓝。 */
+function getRemainUpperBound(
+  totalItems: number | undefined,
+  blueCount: number | undefined,
+  wgCount: number | null,
+): number | null {
+  if (totalItems === undefined) {
+    return null;
+  }
+  if (wgCount === null && blueCount !== undefined) {
+    return Math.max(0, totalItems - blueCount);
+  }
+  if (wgCount !== null && blueCount === undefined) {
+    return Math.max(0, totalItems - wgCount);
+  }
+  return null;
+}
+
 function uniqueSorted(values: number[]): number[] {
   return [...new Set(values)].sort((a, b) => a - b);
 }
 
+/** 使 S/N 显示为 `avg` 的 S 的区间 [low, high)；截断分支 high 为开区间端点。 */
 function getBounds(avg: number, mode: RoundingMode, count: number): [number, number] {
-  /**
-   * 返回总量 S 的合法区间 [low, high)，使得 S/N 在显示规则下会显示为 avg。
-   * 注意 high 是开区间端点，因此后续会用 `floor(high - EPSILON)` 处理浮点边界。
-   */
   if (mode === 'round') {
     return [(avg - 0.005) * count, (avg + 0.005) * count];
   }
@@ -148,12 +176,8 @@ function getBounds(avg: number, mode: RoundingMode, count: number): [number, num
   return [avg * count, (avg + 0.01) * count];
 }
 
+/** totalSlots/count ∈ [avg, avg+0.01) 时与两位截断显示一致。 */
 function matchesTruncatedAverage(avg: number, count: number, totalSlots: number): boolean {
-  /**
-   * 过滤规则：当已知“总格数 totalSlots”时，检查 totalSlots/count 的截断显示是否等于 avg。
-   *
-   * 这里使用 [avg, avg+0.01) 来模拟“两位小数截断显示为 avg”的条件。
-   */
   if (!Number.isFinite(avg) || !Number.isFinite(count) || !Number.isFinite(totalSlots) || count <= 0) {
     return false;
   }
@@ -162,15 +186,8 @@ function matchesTruncatedAverage(avg: number, count: number, totalSlots: number)
   return observed >= avg && observed < avg + 0.01;
 }
 
+/** 白绿件数：round(wgSlots / wgAvg)，与早期静态页一致。 */
 function getWgCount(wgSlots?: number, wgAvg?: number): number | null {
-  /**
-   * 白绿数量估算：
-   * - 输入：白绿总占位 wgSlots、白绿平均格数 wgAvg
-   * - 输出：白绿数量约等于 wgSlots / wgAvg
-   *
-   * 注意：这一步目前沿用原始 HTML 的写法：Math.round。
-   * 如果你确认 wgAvg 也属于“截断显示值”，未来可以改为同样使用 `getPossibleCounts` 去反推。
-   */
   if (!Number.isFinite(wgSlots) || !Number.isFinite(wgAvg) || wgAvg === 0) {
     return null;
   }
@@ -180,12 +197,13 @@ function getWgCount(wgSlots?: number, wgAvg?: number): number | null {
   return Math.round(slots / avg);
 }
 
-function getRemainCount(totalItems: number, blueCount: number, wgCount: number | null): number | null {
-  /**
-   * 剩余数量 remain = 总藏品 - 白绿 - 蓝
-   * remain 会作为 “橙+紫+红” 的总量约束。
-   */
-  if (!Number.isFinite(totalItems) || totalItems <= 0 || !Number.isFinite(blueCount) || blueCount < 0) {
+/** R+O+P = 总藏品 − 蓝 − 白绿；三者齐全时返回，否则 null。 */
+function getRemainCount(
+  totalItems: number | undefined,
+  blueCount: number | undefined,
+  wgCount: number | null,
+): number | null {
+  if (totalItems === undefined || blueCount === undefined) {
     return null;
   }
 
@@ -196,6 +214,10 @@ function getRemainCount(totalItems: number, blueCount: number, wgCount: number |
   return totalItems - blueCount - wgCount;
 }
 
+/**
+ * 单色候选：fixedCount 优先；否则 avg 用截断反推，avgValue 用四舍五入反推后取交；
+ * 与 remain、upperBound 求交；给定 totalSlots 时用截断平均再过滤。
+ */
 function getColorCandidates(options: {
   avg?: number;
   avgValue?: number;
@@ -204,12 +226,6 @@ function getColorCandidates(options: {
   remain: number | null;
   upperBound?: number;
 }): number[] {
-  /**
-   * 生成“某个颜色品质”的候选数量集合：
-   * - 如果用户填了 fixedCount：直接锁定为该值
-   * - 否则用 avg 进行反推（这里使用截断规则，与原始 HTML 行为一致）
-   * - 若提供 totalSlots：用 totalSlots/count 对候选再过滤一遍，进一步缩小范围
-   */
   const { avg, fixedCount, totalSlots, remain, upperBound } = options;
 
   if (Number.isFinite(fixedCount)) {
@@ -217,7 +233,6 @@ function getColorCandidates(options: {
   }
 
   if (!Number.isFinite(avg)) {
-    // 允许只靠“平均价值”来反推数量（用四舍五入规则）
     if (!Number.isFinite(options.avgValue)) {
       return [];
     }
@@ -251,6 +266,7 @@ function getColorCandidates(options: {
   return candidates;
 }
 
+/** 枚举合法 (O,P)，red = remain−O−P；估值见 `resolveColorValue`。 */
 function buildValidCombos(
   remain: number | null,
   orangeList: number[],
@@ -263,16 +279,6 @@ function buildValidCombos(
     purpleUnitValue: number;
   },
 ): ValueCombo[] {
-  /**
-   * 枚举所有合法 (橙,紫,红) 组合：
-   * - 红由 remain - 橙 - 紫 唯一确定
-   * - 若红 < 0 则该组合非法
-   *
-   * 价值估算：
-   * - 红：150,000 / 个
-   * - 橙：若提供平均价值则按“平均价值×数量”精确算，否则按 30,000 / 个
-   * - 紫：若提供平均价值则按“平均价值×数量”精确算，否则按 10,000 / 个
-   */
   if (!Number.isFinite(remain) || (remain as number) < 0 || orangeList.length === 0 || purpleList.length === 0) {
     return [];
   }
@@ -303,34 +309,26 @@ function buildValidCombos(
   return combos;
 }
 
+/** 有平均价值用 avgValue×count，否则用单价×count。 */
 function resolveColorValue(count: number, avgValue: number | undefined, fallbackUnitValue: number): number {
-  /**
-   * 估值优先级：
-   * 1) 若用户提供了平均价值（并且当前组合数量已知），直接按“平均价值 × 数量”计算总价值
-   * 2) 否则使用固定单价估算
-   */
   if (Number.isFinite(avgValue)) {
-    // 平均价值输入按“普通单位”处理（不是“万”），因此不再额外乘 10000。
     return Math.round((avgValue as number) * count);
   }
   return count * fallbackUnitValue;
 }
 
-function getExpectedCombo(combos: ValueCombo[]): ValueCombo | null {
-  /**
-   * 期望价值估计（启发式）：
-   * - 目标1：紫色约占(红+橙+紫)的 2/3
-   * - 目标2：在(红+橙)中，橙色约占 2/3
-   * - 在所有合法组合里，选“最接近上述两个比例目标”的组合，取其价值作为期望估计
-   *
-   * 这样比“所有组合等权平均”更贴近你给出的经验分布。
-   */
+/**
+ * 启发式期望：最小化 |P/(R+O+P)−目标1|×2 + |O/(R+O)−目标2|；目标缺省 0.66；平局取先出现者。
+ */
+function getExpectedCombo(
+  combos: ValueCombo[],
+  expectedPurpleRatio: number,
+  expectedOrangeAmongRORatio: number,
+): ValueCombo | null {
   if (combos.length === 0) {
     return null;
   }
 
-  const targetPurpleRatio = 2 / 3;
-  const targetOrangeAmongRO = 2 / 3;
   let best: ValueCombo | null = null;
   let bestScore = Number.POSITIVE_INFINITY;
 
@@ -342,31 +340,23 @@ function getExpectedCombo(combos: ValueCombo[]): ValueCombo | null {
 
     const purpleRatio = combo.purple / total;
     const redOrange = combo.red + combo.orange;
-    // 红橙都为 0 时，该指标视为最差，避免被误选。
     const orangeAmongRO = redOrange > 0 ? combo.orange / redOrange : -1;
 
     const score =
-      Math.abs(purpleRatio - targetPurpleRatio) * 2 +
-      Math.abs(orangeAmongRO - targetOrangeAmongRO);
+      Math.abs(purpleRatio - expectedPurpleRatio) * 2 + Math.abs(orangeAmongRO - expectedOrangeAmongRORatio);
 
     if (score < bestScore) {
       bestScore = score;
       best = combo;
       continue;
     }
-
-    // 若接近程度相同，保留先遇到的（在固定输入下结果稳定）。
   }
 
   return best;
 }
 
+/** 按估值排序后等距抽样，最多 7 条。 */
 function pickSamples(sortedCombos: ValueCombo[]): ValueCombo[] {
-  /**
-   * 从按价值排序后的合法组合中抽取少量样例，方便 UI 展示：
-   * - 若组合 <= 7：全展示
-   * - 否则：按价值从低到高等间隔抽样 7 个
-   */
   if (sortedCombos.length <= 7) {
     return sortedCombos;
   }

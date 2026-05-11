@@ -1,7 +1,7 @@
 :root {
   font-family: Arial, sans-serif;
   line-height: 1.6;
-  /* 浅色：整体偏灰，减轻刺眼白；托盘（主面板）与页面底有明显层级 */
+  /* light theme tokens */
   color: #1a1d24;
   background: #d4d8e0;
   --bg-page: #d4d8e0;
@@ -33,7 +33,7 @@
 }
 
 :root[data-theme='dark'] {
-  /* 深色主题：偏深蓝灰，比上一版整体再压一层，但仍避免纯黑 */
+  /* dark theme tokens */
   color: #cfe0ff;
   background: #040a14;
   --panel-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
@@ -122,7 +122,7 @@ h3 {
   justify-content: flex-start;
 }
 
-/* 桌面：页签显示全名 */
+/* desktop: full tab labels */
 .tab-label--short {
   display: none;
 }
@@ -149,7 +149,7 @@ h3 {
   font-weight: 700;
 }
 
-/* 仅窄屏手机：短标题 + 页签左对齐。电脑与平板仍为完整标题 + 默认左对齐 */
+/* narrow screens: short tab labels */
 @media (max-width: 640px) {
   .tab-label--short {
     display: inline;
@@ -165,7 +165,7 @@ h3 {
     overflow-x: visible;
   }
 
-  /* 手机端：页签下方内容壳体去掉顶部圆角，避免与页签圆角叠出“双圆角” */
+  /* align panel top edge with tabs on small screens */
   .module-shell.panel {
     border-top-left-radius: 0;
     border-top-right-radius: 0;
@@ -189,7 +189,7 @@ h3 {
   color: var(--text-sub);
 }
 
-/* 维克托整页底部脚注：更小、更淡，仅电脑端显示 */
+/* Victor footnote: desktop only */
 .victor-hint {
   margin: 18px 0 0;
   padding-top: 10px;
@@ -263,7 +263,7 @@ h3 {
   font-size: 12px;
 }
 
-/* 石油王结果：红/橙/紫行 — 左侧圆点 + 标题色，数字沿用正文色 */
+/* Ahmed result rows: dot + coloured title */
 .qty-line {
   display: flex;
   align-items: flex-start;
@@ -324,7 +324,7 @@ h3 {
   margin: 0 2px;
 }
 
-/* 代表性结果：圆点 + 彩色数字（顺序：红｜橙｜紫），与上方 qty-line 圆点风格一致 */
+/* sample chips: R|O|P dots */
 .sample-result-chip {
   display: inline-flex;
   align-items: center;
@@ -440,7 +440,7 @@ button:hover {
   flex-shrink: 0;
 }
 
-/* 覆盖全局 button:hover，避免主题按钮在浅色主题下变成白字蓝底看不清 */
+/* theme button hover: keep readable contrast */
 .header-actions .theme-toggle:hover {
   background: var(--theme-btn-bg);
   color: var(--theme-btn-text);
@@ -472,7 +472,7 @@ hr {
   margin: 12px 0;
 }
 
-/* 说明区截图：相对初版 500px 宽约 75%（375px）；宽屏再 ×0.75 约 281px */
+/* about images: responsive width caps */
 .about-images figure {
   margin: 0;
   width: min(375px, 92vw, 100%);
@@ -518,7 +518,7 @@ hr {
     max-width: 860px;
   }
 
-  /* 平板与手机：标题与主题同一行，主题靠右 */
+  /* header: title + theme on one row */
   .page-header {
     flex-direction: row;
     flex-wrap: wrap;
@@ -557,14 +557,12 @@ hr {
     padding: 14px;
   }
 
-  /* 石油王面板：手机端略紧凑，把横向尽量留给输入 */
+  /* tighter sub-panels on small screens */
   .sub-panel {
     padding: 12px 12px;
   }
 
-  /*
-   * 石油王等：输入列下限约为原 10.25rem 的 1/4（~2.65rem），短数字够用；说明列略宽，减少竖排换行。
-   */
+  /* form grid: label | input, narrow second column for short numbers */
   .grid {
     grid-template-columns: minmax(7.75rem, 1fr) minmax(2.65rem, 1.35fr);
     gap: 8px 8px;

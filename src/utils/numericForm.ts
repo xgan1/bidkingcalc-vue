@@ -1,23 +1,17 @@
-/**
- * 表单数字格式校验（仅格式，不做业务规则）
- * 用于石油王等多字段表单，避免 parseInt 悄悄吞掉非法后缀。
- */
+/** 表单字符串格式校验（仅语法，不含业务规则）。 */
 
-/** 非负整数，且不允许空 */
+/** 非空且为非负整数字符串。 */
 export function isRequiredNonNegativeIntString(raw: string): boolean {
   return /^\d+$/.test(raw.trim());
 }
 
-/** 可选：空 或 非负整数 */
+/** 空串或合法非负整数字符串。 */
 export function isOptionalNonNegativeIntString(raw: string): boolean {
   const t = raw.trim();
   return t === '' || /^\d+$/.test(t);
 }
 
-/**
- * 可选十进制字符串：空合法；否则只允许数字与一个小数点，不允许科学计数法等。
- * 允许：0.45、2.、.5、12（整数）
- */
+/** 空串或十进制字面量（无科学计数法），且可解析为有限数。 */
 export function isOptionalDecimalString(raw: string): boolean {
   const t = raw.trim();
   if (t === '') {

@@ -8,25 +8,15 @@ import {
   isRequiredNonNegativeIntString,
 } from '../utils/numericForm';
 
-/**
- * 艾哈迈德（石油王）推算器（表单 + 展示）
- *
- * 这个组件负责：
- * - 收集用户输入（全部用字符串存表单，减少输入过程的“数字校验干扰”）
- * - 将字符串转换成 `GameEstimatorInput`（数字/可选数字）
- * - 调用 `estimateGame` 得到结构化结果并展示
- *
- * 关键点：这里不写核心算法，只做数据准备和 UI 渲染。
- */
+/** 石油王：字符串表单 → `GameEstimatorInput` → `estimateGame` 展示。 */
 
 type FormState = Record<string, string>;
 const DEFAULT_RED_UNIT_VALUE = 150000;
 const DEFAULT_ORANGE_UNIT_VALUE = 30000;
 const DEFAULT_PURPLE_UNIT_VALUE = 10000;
+const DEFAULT_EXPECTED_RATIO = 0.66;
 
-/**
- * 默认值来自原始 HTML 版本，便于你对照验证结果是否一致。
- */
+/** 与首版静态 HTML 演示数据对齐，便于回归对照。 */
 const initialForm: FormState = {
   totalItems: '48',
   wgSlots: '17',
@@ -43,11 +33,13 @@ const initialForm: FormState = {
   redUnitValue: `${DEFAULT_RED_UNIT_VALUE}`,
   orangeUnitValue: `${DEFAULT_ORANGE_UNIT_VALUE}`,
   purpleUnitValue: `${DEFAULT_PURPLE_UNIT_VALUE}`,
+  expectedPurpleRatio: `${DEFAULT_EXPECTED_RATIO}`,
+  expectedOrangeAmongRORatio: `${DEFAULT_EXPECTED_RATIO}`,
 };
 
 const form = reactive<FormState>({ ...initialForm });
 
-/** 一键清零（全部留空，不预填 0） */
+/** 清零模板：可数字段留空，单价与期望比保留默认。 */
 const clearedForm: FormState = {
   totalItems: '',
   wgSlots: '',
@@ -64,40 +56,51 @@ const clearedForm: FormState = {
   redUnitValue: `${DEFAULT_RED_UNIT_VALUE}`,
   orangeUnitValue: `${DEFAULT_ORANGE_UNIT_VALUE}`,
   purpleUnitValue: `${DEFAULT_PURPLE_UNIT_VALUE}`,
+  expectedPurpleRatio: `${DEFAULT_EXPECTED_RATIO}`,
+  expectedOrangeAmongRORatio: `${DEFAULT_EXPECTED_RATIO}`,
 };
 
 const result = computed(() => estimateGame(getEstimatorInput(form)));
 const remainDisplay = computed(() => {
-  if (result.value.remain === null) {
-    return '未知';
+  if (result.value.remain !== null) {
+    return `${result.value.remain}`;
   }
-  const blueProvided = isRequiredNonNegativeIntString(form.blueCount);
-  return blueProvided ? `${result.value.remain}` : `${result.value.remain}（最多）`;
+  if (result.value.remainUpperBound !== null) {
+    return `至多 ${result.value.remainUpperBound}（上界）`;
+  }
+  return '未知';
+});
+
+/** min===max 时隐藏「价值范围」行。 */
+const hideValueRangeLine = computed(() => {
+  const r = result.value;
+  return r.minValue !== null && r.maxValue !== null && r.minValue === r.maxValue;
 });
 
 const FIELD_LABELS = {
-  totalItems: '总藏品数量',
-  wgSlots: '白绿总占位',
-  wgAvg: '白绿平均格数',
-  orangeAvg: '橙色平均格数',
-  orangeAvgValue: '橙色平均价值',
-  blueCount: '蓝色总数量',
-  purpleAvg: '紫色平均格数',
-  purpleAvgValue: '紫色平均价值',
-  orangeFixedCount: '橙色确定数量',
-  orangeTotalSlots: '橙色总格数',
-  purpleFixedCount: '紫色确定数量',
-  purpleTotalSlots: '紫色总格数',
+  totalItems: '总藏品数量（技能）',
+  wgSlots: '白绿总占位（道具）',
+  wgAvg: '白绿平均格数（道具）',
+  orangeAvg: '橙色平均格数（技能）',
+  orangeAvgValue: '橙色平均价值（可选）',
+  blueCount: '蓝色总数量（道具）',
+  purpleAvg: '紫色平均格数（技能）',
+  purpleAvgValue: '紫色平均价值（可选）',
+  orangeFixedCount: '橙色确定数量（可选）',
+  orangeTotalSlots: '橙色总格数（可选）',
+  purpleFixedCount: '紫色确定数量（可选）',
+  purpleTotalSlots: '紫色总格数（可选）',
   redUnitValue: '红色单价',
   orangeUnitValue: '橙色单价',
   purpleUnitValue: '紫色单价',
+  expectedPurpleRatio: '紫占比目标',
+  expectedOrangeAmongRORatio: '橙占比目标',
 } as const satisfies Record<string, string>;
 
 const estimatorWarnings = computed(() => {
   const w: string[] = [];
   const f = form;
 
-  // 第一回合不一定能拿到信息：空就不报错；只有填写了但格式不对才提示
   if (f.totalItems.trim() !== '' && !isRequiredNonNegativeIntString(f.totalItems)) {
     w.push(`「${FIELD_LABELS.totalItems}」须填写非负整数（仅数字）。`);
   }
@@ -123,6 +126,17 @@ const estimatorWarnings = computed(() => {
     }
   });
 
+  (['expectedPurpleRatio', 'expectedOrangeAmongRORatio'] as const).forEach((key) => {
+    if (!isOptionalDecimalString(f[key])) {
+      w.push(`「${FIELD_LABELS[key]}」须为 0~1 之间的数字（可含小数点）。`);
+      return;
+    }
+    const v = Number.parseFloat(f[key]);
+    if (Number.isFinite(v) && (v < 0 || v > 1)) {
+      w.push(`「${FIELD_LABELS[key]}」须为 0~1 之间的数字。`);
+    }
+  });
+
   return w;
 });
 
@@ -130,22 +144,15 @@ function clearForm(): void {
   Object.assign(form, clearedForm);
 }
 
+/** 空串或非法解析 → `undefined`；总藏品、蓝数未填不传 0。 */
 function getEstimatorInput(currentForm: FormState): GameEstimatorInput {
-  /**
-   * 表单 -> 业务输入类型转换
-   *
-   * 规则：
-   * - 为空字符串 => undefined（表示“用户没提供该信息”）
-   * - 无法解析 => undefined
-   * - 对必填项（totalItems / blueCount）给一个 0 的兜底，避免 UI 崩掉
-   */
   return {
-    totalItems: toInt(currentForm.totalItems) ?? 0,
+    totalItems: toInt(currentForm.totalItems),
     wgSlots: toFloat(currentForm.wgSlots),
     wgAvg: toFloat(currentForm.wgAvg),
     orangeAvg: toFloat(currentForm.orangeAvg),
     orangeAvgValue: toFloat(currentForm.orangeAvgValue),
-    blueCount: toInt(currentForm.blueCount) ?? 0,
+    blueCount: toInt(currentForm.blueCount),
     orangeFixedCount: toInt(currentForm.orangeFixedCount),
     orangeTotalSlots: toInt(currentForm.orangeTotalSlots),
     purpleFixedCount: toInt(currentForm.purpleFixedCount),
@@ -155,31 +162,25 @@ function getEstimatorInput(currentForm: FormState): GameEstimatorInput {
     redUnitValue: toInt(currentForm.redUnitValue) ?? DEFAULT_RED_UNIT_VALUE,
     orangeUnitValue: toInt(currentForm.orangeUnitValue) ?? DEFAULT_ORANGE_UNIT_VALUE,
     purpleUnitValue: toInt(currentForm.purpleUnitValue) ?? DEFAULT_PURPLE_UNIT_VALUE,
+    expectedPurpleRatio: toFloat(currentForm.expectedPurpleRatio),
+    expectedOrangeAmongRORatio: toFloat(currentForm.expectedOrangeAmongRORatio),
   };
 }
 
+/** `parseInt` 失败返回 `undefined`。 */
 function toInt(value: string): number | undefined {
-  /**
-   * 安全的整数解析：
-   * - 解析失败返回 undefined（而不是 NaN）
-   */
   const parsed = Number.parseInt(value, 10);
   return Number.isNaN(parsed) ? undefined : parsed;
 }
 
+/** `parseFloat` 失败返回 `undefined`。 */
 function toFloat(value: string): number | undefined {
-  /**
-   * 安全的小数解析：
-   * - 解析失败返回 undefined（而不是 NaN）
-   */
   const parsed = Number.parseFloat(value);
   return Number.isNaN(parsed) ? undefined : parsed;
 }
 
+/** 货币单位 →「x.x万」；`null` 显示为未知。 */
 function formatWan(value: number | null): string {
-  /**
-   * 将数值格式化成“xx.x万”，UI 更贴近你原始 HTML 的展示口径。
-   */
   if (value === null) {
     return '未知';
   }
@@ -220,23 +221,28 @@ function formatCountCandidates(values: number[]): string {
   <section class="inner-section">
     <h2>艾哈迈德（石油王）</h2>
 
+    <p class="result-hint-muted">
+      <strong>技能被动</strong>顺序固定：第一回合<strong>总藏品数量</strong> → 第二回合<strong>橙色平均格数</strong> → 第三回合<strong>紫色平均格数</strong>；每回合表单内<strong>技能在上、道具在下</strong>。
+      三件道具常用顺序为<strong>普品均格 → 良品存量 → 普品扫描</strong>，局内可先买其中任意一件，已填项会尽量参与推算（未齐时「橙紫红总数量」可能显示<strong>上界</strong>）。
+    </p>
+
     <div class="sub-panel">
       <h3>第一回合</h3>
       <div class="grid">
-        <label>总藏品数量</label>
+        <label>总藏品数量（技能）</label>
         <input v-model="form.totalItems" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" />
-        <label>白绿总占位</label>
-        <input v-model="form.wgSlots" type="text" inputmode="decimal" autocomplete="off" />
+        <label>白绿平均格数（道具）</label>
+        <input v-model="form.wgAvg" type="text" inputmode="decimal" autocomplete="off" />
       </div>
     </div>
 
     <div class="sub-panel">
       <h3>第二回合</h3>
       <div class="grid">
-        <label>白绿平均格数</label>
-        <input v-model="form.wgAvg" type="text" inputmode="decimal" autocomplete="off" />
-        <label>橙色平均格数</label>
+        <label>橙色平均格数（技能）</label>
         <input v-model="form.orangeAvg" type="text" inputmode="decimal" autocomplete="off" />
+        <label>蓝色总数量（道具）</label>
+        <input v-model="form.blueCount" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" />
         <label>橙色平均价值（可选）</label>
         <input v-model="form.orangeAvgValue" type="text" inputmode="decimal" autocomplete="off" />
         <label>橙色确定数量（可选）</label>
@@ -249,10 +255,10 @@ function formatCountCandidates(values: number[]): string {
     <div class="sub-panel">
       <h3>第三回合</h3>
       <div class="grid">
-        <label>蓝色总数量</label>
-        <input v-model="form.blueCount" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" />
-        <label>紫色平均格数</label>
+        <label>紫色平均格数（技能）</label>
         <input v-model="form.purpleAvg" type="text" inputmode="decimal" autocomplete="off" />
+        <label>白绿总占位（道具）</label>
+        <input v-model="form.wgSlots" type="text" inputmode="decimal" autocomplete="off" />
         <label>紫色平均价值（可选）</label>
         <input v-model="form.purpleAvgValue" type="text" inputmode="decimal" autocomplete="off" />
         <label>紫色确定数量（可选）</label>
@@ -274,7 +280,9 @@ function formatCountCandidates(values: number[]): string {
     </div>
 
     <div class="result-box">
-      <p><strong>预估价值范围：</strong>{{ formatWan(result.minValue) }} ~ {{ formatWan(result.maxValue) }}</p>
+      <p v-if="!hideValueRangeLine">
+        <strong>预估价值范围：</strong>{{ formatWan(result.minValue) }} ~ {{ formatWan(result.maxValue) }}
+      </p>
       <p>
         <strong>预估期望价值：</strong>{{ formatWan(result.expectedValue) }}
         <template v-if="result.expectedCombo">
@@ -296,7 +304,12 @@ function formatCountCandidates(values: number[]): string {
         </template>
       </p>
       <hr />
-      <p><strong>橙紫红总数量：</strong>{{ remainDisplay }}</p>
+      <p>
+        <strong>橙紫红总数量：</strong>{{ remainDisplay }}
+        <template v-if="result.remain === null && result.remainUpperBound !== null">
+          <span class="result-hint-muted"> — 此为根据当前已填项得到的<strong>上界</strong>；总藏品、白绿与蓝色齐后为精确值。</span>
+        </template>
+      </p>
       <p class="qty-line qty-line--red">
         <span class="qty-line-icon" aria-hidden="true"></span>
         <span class="qty-line-main">
@@ -373,6 +386,29 @@ function formatCountCandidates(values: number[]): string {
           <label>紫色单价</label>
           <input v-model="form.purpleUnitValue" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" />
         </div>
+      </div>
+
+      <div class="sub-panel">
+        <h3>期望设置（动态比例目标）</h3>
+        <div class="grid">
+          <label>紫占比目标</label>
+          <input
+            v-model="form.expectedPurpleRatio"
+            type="text"
+            inputmode="decimal"
+            autocomplete="off"
+          />
+          <label>橙占比目标</label>
+          <input
+            v-model="form.expectedOrangeAmongRORatio"
+            type="text"
+            inputmode="decimal"
+            autocomplete="off"
+          />
+        </div>
+        <p class="result-hint-muted">
+          紫占比目标 = 紫色 / (红色 + 橙色 + 紫色)；橙占比目标 = 橙色 / (红色 + 橙色)。
+        </p>
       </div>
     </div>
   </section>

@@ -30,12 +30,22 @@ export interface GameEstimatorInput {
   wgSlots?: number;
   wgAvg?: number;
   orangeAvg?: number;
+  /** 橙色平均价值（游戏显示值，通常两位小数四舍五入） */
+  orangeAvgValue?: number;
   blueCount: number;
   orangeFixedCount?: number;
   orangeTotalSlots?: number;
   purpleFixedCount?: number;
   purpleTotalSlots?: number;
   purpleAvg?: number;
+  /** 紫色平均价值（游戏显示值，通常两位小数四舍五入） */
+  purpleAvgValue?: number;
+  /** 红色单价（普通单位） */
+  redUnitValue?: number;
+  /** 橙色单价（普通单位） */
+  orangeUnitValue?: number;
+  /** 紫色单价（普通单位） */
+  purpleUnitValue?: number;
 }
 
 /**
@@ -54,5 +64,6 @@ export interface GameEstimatorResult {
   minValue: number | null;
   maxValue: number | null;
   expectedValue: number | null;
+  expectedCombo: ValueCombo | null;
   samples: ValueCombo[];
 }

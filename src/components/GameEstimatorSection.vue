@@ -20,6 +20,9 @@ import {
  */
 
 type FormState = Record<string, string>;
+const DEFAULT_RED_UNIT_VALUE = 150000;
+const DEFAULT_ORANGE_UNIT_VALUE = 30000;
+const DEFAULT_PURPLE_UNIT_VALUE = 10000;
 
 /**
  * 默认值来自原始 HTML 版本，便于你对照验证结果是否一致。
@@ -29,42 +32,80 @@ const initialForm: FormState = {
   wgSlots: '17',
   wgAvg: '2.12',
   orangeAvg: '0.88',
+  orangeAvgValue: '',
   blueCount: '13',
   orangeFixedCount: '',
   orangeTotalSlots: '',
   purpleFixedCount: '',
   purpleTotalSlots: '',
   purpleAvg: '0.75',
+  purpleAvgValue: '',
+  redUnitValue: `${DEFAULT_RED_UNIT_VALUE}`,
+  orangeUnitValue: `${DEFAULT_ORANGE_UNIT_VALUE}`,
+  purpleUnitValue: `${DEFAULT_PURPLE_UNIT_VALUE}`,
 };
 
 const form = reactive<FormState>({ ...initialForm });
+
+/** 一键清零（全部留空，不预填 0） */
+const clearedForm: FormState = {
+  totalItems: '',
+  wgSlots: '',
+  wgAvg: '',
+  orangeAvg: '',
+  orangeAvgValue: '',
+  blueCount: '',
+  orangeFixedCount: '',
+  orangeTotalSlots: '',
+  purpleFixedCount: '',
+  purpleTotalSlots: '',
+  purpleAvg: '',
+  purpleAvgValue: '',
+  redUnitValue: `${DEFAULT_RED_UNIT_VALUE}`,
+  orangeUnitValue: `${DEFAULT_ORANGE_UNIT_VALUE}`,
+  purpleUnitValue: `${DEFAULT_PURPLE_UNIT_VALUE}`,
+};
+
 const result = computed(() => estimateGame(getEstimatorInput(form)));
+const remainDisplay = computed(() => {
+  if (result.value.remain === null) {
+    return '未知';
+  }
+  const blueProvided = isRequiredNonNegativeIntString(form.blueCount);
+  return blueProvided ? `${result.value.remain}` : `${result.value.remain}（最多）`;
+});
 
 const FIELD_LABELS = {
   totalItems: '总藏品数量',
   wgSlots: '白绿总占位',
   wgAvg: '白绿平均格数',
   orangeAvg: '橙色平均格数',
+  orangeAvgValue: '橙色平均价值',
   blueCount: '蓝色总数量',
   purpleAvg: '紫色平均格数',
+  purpleAvgValue: '紫色平均价值',
   orangeFixedCount: '橙色确定数量',
   orangeTotalSlots: '橙色总格数',
   purpleFixedCount: '紫色确定数量',
   purpleTotalSlots: '紫色总格数',
+  redUnitValue: '红色单价',
+  orangeUnitValue: '橙色单价',
+  purpleUnitValue: '紫色单价',
 } as const satisfies Record<string, string>;
 
 const estimatorWarnings = computed(() => {
   const w: string[] = [];
   const f = form;
 
-  if (!isRequiredNonNegativeIntString(f.totalItems)) {
-    w.push(`「${FIELD_LABELS.totalItems}」须填写非负整数（仅数字），不能为空。`);
+  // 第一回合不一定能拿到信息：空就不报错；只有填写了但格式不对才提示
+  if (f.totalItems.trim() !== '' && !isRequiredNonNegativeIntString(f.totalItems)) {
+    w.push(`「${FIELD_LABELS.totalItems}」须填写非负整数（仅数字）。`);
   }
-  if (!isRequiredNonNegativeIntString(f.blueCount)) {
-    w.push(`「${FIELD_LABELS.blueCount}」须填写非负整数（仅数字），不能为空。`);
+  if (f.blueCount.trim() !== '' && !isRequiredNonNegativeIntString(f.blueCount)) {
+    w.push(`「${FIELD_LABELS.blueCount}」须填写非负整数（仅数字）。`);
   }
 
-  (['wgSlots', 'wgAvg', 'orangeAvg', 'purpleAvg'] as const).forEach((key) => {
+  (['wgSlots', 'wgAvg', 'orangeAvg', 'purpleAvg', 'orangeAvgValue', 'purpleAvgValue'] as const).forEach((key) => {
     if (!isOptionalDecimalString(f[key])) {
       w.push(`「${FIELD_LABELS[key]}」须为合法数字（可含小数点）；不要输入字母或多余符号。`);
     }
@@ -76,11 +117,17 @@ const estimatorWarnings = computed(() => {
     }
   });
 
+  (['redUnitValue', 'orangeUnitValue', 'purpleUnitValue'] as const).forEach((key) => {
+    if (f[key].trim() !== '' && !isRequiredNonNegativeIntString(f[key])) {
+      w.push(`「${FIELD_LABELS[key]}」须填写非负整数（仅数字）。`);
+    }
+  });
+
   return w;
 });
 
-function resetForm(): void {
-  Object.assign(form, initialForm);
+function clearForm(): void {
+  Object.assign(form, clearedForm);
 }
 
 function getEstimatorInput(currentForm: FormState): GameEstimatorInput {
@@ -97,12 +144,17 @@ function getEstimatorInput(currentForm: FormState): GameEstimatorInput {
     wgSlots: toFloat(currentForm.wgSlots),
     wgAvg: toFloat(currentForm.wgAvg),
     orangeAvg: toFloat(currentForm.orangeAvg),
+    orangeAvgValue: toFloat(currentForm.orangeAvgValue),
     blueCount: toInt(currentForm.blueCount) ?? 0,
     orangeFixedCount: toInt(currentForm.orangeFixedCount),
     orangeTotalSlots: toInt(currentForm.orangeTotalSlots),
     purpleFixedCount: toInt(currentForm.purpleFixedCount),
     purpleTotalSlots: toInt(currentForm.purpleTotalSlots),
     purpleAvg: toFloat(currentForm.purpleAvg),
+    purpleAvgValue: toFloat(currentForm.purpleAvgValue),
+    redUnitValue: toInt(currentForm.redUnitValue) ?? DEFAULT_RED_UNIT_VALUE,
+    orangeUnitValue: toInt(currentForm.orangeUnitValue) ?? DEFAULT_ORANGE_UNIT_VALUE,
+    purpleUnitValue: toInt(currentForm.purpleUnitValue) ?? DEFAULT_PURPLE_UNIT_VALUE,
   };
 }
 
@@ -134,6 +186,34 @@ function formatWan(value: number | null): string {
 
   return `${(value / 10000).toFixed(1)}万`;
 }
+
+function formatCountCandidates(values: number[]): string {
+  if (values.length === 0) {
+    return '';
+  }
+  if (values.length <= 12) {
+    return values.join('，');
+  }
+
+  const ranges: string[] = [];
+  let start = values[0];
+  let end = values[0];
+
+  for (let i = 1; i < values.length; i += 1) {
+    const current = values[i];
+    if (current === end + 1) {
+      end = current;
+      continue;
+    }
+
+    ranges.push(start === end ? `${start}` : `${start}-${end}`);
+    start = current;
+    end = current;
+  }
+  ranges.push(start === end ? `${start}` : `${start}-${end}`);
+
+  return `${ranges.join('，')}（共${values.length}个）`;
+}
 </script>
 
 <template>
@@ -157,6 +237,8 @@ function formatWan(value: number | null): string {
         <input v-model="form.wgAvg" type="text" inputmode="decimal" autocomplete="off" />
         <label>橙色平均格数</label>
         <input v-model="form.orangeAvg" type="text" inputmode="decimal" autocomplete="off" />
+        <label>橙色平均价值（可选）</label>
+        <input v-model="form.orangeAvgValue" type="text" inputmode="decimal" autocomplete="off" />
         <label>橙色确定数量（可选）</label>
         <input v-model="form.orangeFixedCount" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" />
         <label>橙色总格数（可选）</label>
@@ -171,6 +253,8 @@ function formatWan(value: number | null): string {
         <input v-model="form.blueCount" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" />
         <label>紫色平均格数</label>
         <input v-model="form.purpleAvg" type="text" inputmode="decimal" autocomplete="off" />
+        <label>紫色平均价值（可选）</label>
+        <input v-model="form.purpleAvgValue" type="text" inputmode="decimal" autocomplete="off" />
         <label>紫色确定数量（可选）</label>
         <input v-model="form.purpleFixedCount" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" />
         <label>紫色总格数（可选）</label>
@@ -179,7 +263,7 @@ function formatWan(value: number | null): string {
     </div>
 
     <div class="inline-form">
-      <button type="button" @click="resetForm">恢复默认</button>
+      <button type="button" @click="clearForm">清零</button>
     </div>
 
     <div v-if="estimatorWarnings.length" class="form-warnings" role="status">
@@ -191,14 +275,33 @@ function formatWan(value: number | null): string {
 
     <div class="result-box">
       <p><strong>预估价值范围：</strong>{{ formatWan(result.minValue) }} ~ {{ formatWan(result.maxValue) }}</p>
-      <p><strong>预估期望价值：</strong>{{ formatWan(result.expectedValue) }}</p>
+      <p>
+        <strong>预估期望价值：</strong>{{ formatWan(result.expectedValue) }}
+        <template v-if="result.expectedCombo">
+          <span class="sample-result-sep">｜</span>
+          <span class="sample-result-chip" title="红色件数">
+            <span class="sample-result-dot sample-result-dot--red" aria-hidden="true"></span>
+            <span class="sample-qty-num sample-qty-num--red">{{ result.expectedCombo.red }}</span>
+          </span>
+          <span class="sample-result-sep">｜</span>
+          <span class="sample-result-chip" title="橙色件数">
+            <span class="sample-result-dot sample-result-dot--orange" aria-hidden="true"></span>
+            <span class="sample-qty-num sample-qty-num--orange">{{ result.expectedCombo.orange }}</span>
+          </span>
+          <span class="sample-result-sep">｜</span>
+          <span class="sample-result-chip" title="紫色件数">
+            <span class="sample-result-dot sample-result-dot--purple" aria-hidden="true"></span>
+            <span class="sample-qty-num sample-qty-num--purple">{{ result.expectedCombo.purple }}</span>
+          </span>
+        </template>
+      </p>
       <hr />
-      <p><strong>橙紫红总数量：</strong>{{ result.remain ?? '未知' }}</p>
+      <p><strong>橙紫红总数量：</strong>{{ remainDisplay }}</p>
       <p class="qty-line qty-line--red">
         <span class="qty-line-icon" aria-hidden="true"></span>
         <span class="qty-line-main">
           <strong class="qty-line-title">红色可能数量：</strong>
-          <template v-if="result.redList.length">{{ result.redList.join('，') }}</template>
+          <template v-if="result.redList.length">{{ formatCountCandidates(result.redList) }}</template>
           <span v-else class="result-hint-muted">暂时无法推算或条件矛盾</span>
         </span>
       </p>
@@ -206,16 +309,16 @@ function formatWan(value: number | null): string {
         <span class="qty-line-icon" aria-hidden="true"></span>
         <span class="qty-line-main">
           <strong class="qty-line-title">橙色可能数量：</strong>
-          <template v-if="result.orangeList.length">{{ result.orangeList.join('，') }}</template>
-          <span v-else class="result-hint-muted">无解（可能输入错误或条件矛盾）</span>
+          <template v-if="result.orangeList.length">{{ formatCountCandidates(result.orangeList) }}</template>
+          <span v-else class="result-hint-muted">暂时无法推算或条件矛盾</span>
         </span>
       </p>
       <p class="qty-line qty-line--purple">
         <span class="qty-line-icon" aria-hidden="true"></span>
         <span class="qty-line-main">
           <strong class="qty-line-title">紫色可能数量：</strong>
-          <template v-if="result.purpleList.length">{{ result.purpleList.join('，') }}</template>
-          <span v-else class="result-hint-muted">无解（可能输入错误或条件矛盾）</span>
+          <template v-if="result.purpleList.length">{{ formatCountCandidates(result.purpleList) }}</template>
+          <span v-else class="result-hint-muted">暂时无法推算或条件矛盾</span>
         </span>
       </p>
       <p><strong>白绿总数量：</strong>{{ result.wgCount ?? '未知' }}</p>
@@ -257,9 +360,20 @@ function formatWan(value: number | null): string {
         </ul>
       </div>
       <p class="result-hint-muted value-disclaimer value-disclaimer--footer">
-        <strong>价值粗算（仅供参考）：</strong>按简化单价——<strong>橙色约 4 万/件、红色约 15 万/件</strong>（紫色未计入），在合法组合间比相对高低。
-        局里<strong>橙色也可能很便宜、红色也未必值满价</strong>，上述区间<strong>勿当作精确估值或成交价</strong>。
+        <strong>价值粗算（仅供参考）：</strong>按简化单价——<strong>红色 150000/件、橙色 30000/件、紫色 10000/件</strong>；若填写了橙/紫平均价值，则对应颜色按“平均价值 × 数量”直接计入。
+        局里<strong>实际价格会波动</strong>，上述区间<strong>勿当作精确估值或成交价</strong>。
       </p>
+      <div class="sub-panel">
+        <h3>估值单价设置（普通单位）</h3>
+        <div class="grid">
+          <label>红色单价</label>
+          <input v-model="form.redUnitValue" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" />
+          <label>橙色单价</label>
+          <input v-model="form.orangeUnitValue" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" />
+          <label>紫色单价</label>
+          <input v-model="form.purpleUnitValue" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" />
+        </div>
+      </div>
     </div>
   </section>
 </template>

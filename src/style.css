@@ -164,6 +164,12 @@ h3 {
     padding-left: 0;
     overflow-x: visible;
   }
+
+  /* 手机端：页签下方内容壳体去掉顶部圆角，避免与页签圆角叠出“双圆角” */
+  .module-shell.panel {
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+  }
 }
 
 .tab-content {
@@ -551,8 +557,33 @@ hr {
     padding: 14px;
   }
 
+  /* 石油王面板：手机端略紧凑，把横向尽量留给输入 */
+  .sub-panel {
+    padding: 12px 12px;
+  }
+
+  /*
+   * 石油王等：输入列下限约为原 10.25rem 的 1/4（~2.65rem），短数字够用；说明列略宽，减少竖排换行。
+   */
   .grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(7.75rem, 1fr) minmax(2.65rem, 1.35fr);
+    gap: 8px 8px;
+    justify-items: stretch;
+  }
+
+  .grid > label {
+    min-width: 0;
+    justify-self: start;
+    overflow-wrap: break-word;
+    line-height: 1.25;
+  }
+
+  .grid > input {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    justify-self: stretch;
   }
 
   .inline-form {
@@ -562,6 +593,7 @@ hr {
   input {
     width: 100%;
     min-width: 0;
+    box-sizing: border-box;
   }
 }
 

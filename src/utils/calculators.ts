@@ -9,8 +9,9 @@ import type { GameEstimatorInput, GameEstimatorResult, RoundingMode, ValueCombo 
  */
 
 const EPSILON = 1e-12;
-const RED_VALUE = 150000;
-const ORANGE_VALUE = 40000;
+const DEFAULT_RED_VALUE = 150000;
+const DEFAULT_ORANGE_VALUE = 30000;
+const DEFAULT_PURPLE_VALUE = 10000;
 
 /**
  * 反推“可能的数量 N”
@@ -64,46 +65,75 @@ export function estimateGame(input: GameEstimatorInput): GameEstimatorResult {
    */
   const wgCount = getWgCount(input.wgSlots, input.wgAvg);
   const remain = getRemainCount(input.totalItems, input.blueCount, wgCount);
+  const upperBound = wgCount === null ? undefined : Math.max(0, input.totalItems - wgCount);
 
   const orangeList = getColorCandidates({
     avg: input.orangeAvg,
+    avgValue: input.orangeAvgValue,
     fixedCount: input.orangeFixedCount,
     totalSlots: input.orangeTotalSlots,
     remain,
+    upperBound,
   });
 
   const purpleList = getColorCandidates({
     avg: input.purpleAvg,
+    avgValue: input.purpleAvgValue,
     fixedCount: input.purpleFixedCount,
     totalSlots: input.purpleTotalSlots,
     remain,
+    upperBound,
   });
 
-  const combos = buildValidCombos(remain, orangeList, purpleList);
+  const redUnitValue = Number.isFinite(input.redUnitValue) ? (input.redUnitValue as number) : DEFAULT_RED_VALUE;
+  const orangeUnitValue = Number.isFinite(input.orangeUnitValue)
+    ? (input.orangeUnitValue as number)
+    : DEFAULT_ORANGE_VALUE;
+  const purpleUnitValue = Number.isFinite(input.purpleUnitValue)
+    ? (input.purpleUnitValue as number)
+    : DEFAULT_PURPLE_VALUE;
+  const combos = buildValidCombos(
+    remain,
+    orangeList,
+    purpleList,
+    {
+      orangeAvgValue: input.orangeAvgValue,
+      purpleAvgValue: input.purpleAvgValue,
+      redUnitValue,
+      orangeUnitValue,
+      purpleUnitValue,
+    },
+  );
 
-  const orangeSet = new Set<number>();
-  const purpleSet = new Set<number>();
+  const comboOrangeList = uniqueSorted(combos.map((combo) => combo.orange));
+  const comboPurpleList = uniqueSorted(combos.map((combo) => combo.purple));
   const redSet = new Set<number>();
 
   for (const combo of combos) {
-    orangeSet.add(combo.orange);
-    purpleSet.add(combo.purple);
     redSet.add(combo.red);
   }
 
   const sortedCombos = [...combos].sort((a, b) => a.value - b.value);
+  const expectedCombo = getExpectedCombo(sortedCombos);
 
   return {
     wgCount,
     remain,
-    orangeList: [...orangeSet].sort((a, b) => a - b),
-    purpleList: [...purpleSet].sort((a, b) => a - b),
+    // 若已能枚举合法组合，则以组合投影结果为准，避免显示组合上不可能的值。
+    // 若暂时无法枚举组合（例如只填了第二回合橙色信息），仍先展示单色候选。
+    orangeList: comboOrangeList.length > 0 ? comboOrangeList : [...orangeList].sort((a, b) => a - b),
+    purpleList: comboPurpleList.length > 0 ? comboPurpleList : [...purpleList].sort((a, b) => a - b),
     redList: [...redSet].sort((a, b) => a - b),
     minValue: sortedCombos[0]?.value ?? null,
     maxValue: sortedCombos.length > 0 ? sortedCombos[sortedCombos.length - 1].value : null,
-    expectedValue: getAverageValue(sortedCombos),
+    expectedValue: expectedCombo?.value ?? null,
+    expectedCombo,
     samples: pickSamples(sortedCombos),
   };
+}
+
+function uniqueSorted(values: number[]): number[] {
+  return [...new Set(values)].sort((a, b) => a - b);
 }
 
 function getBounds(avg: number, mode: RoundingMode, count: number): [number, number] {
@@ -168,9 +198,11 @@ function getRemainCount(totalItems: number, blueCount: number, wgCount: number |
 
 function getColorCandidates(options: {
   avg?: number;
+  avgValue?: number;
   fixedCount?: number;
   totalSlots?: number;
   remain: number | null;
+  upperBound?: number;
 }): number[] {
   /**
    * 生成“某个颜色品质”的候选数量集合：
@@ -178,24 +210,39 @@ function getColorCandidates(options: {
    * - 否则用 avg 进行反推（这里使用截断规则，与原始 HTML 行为一致）
    * - 若提供 totalSlots：用 totalSlots/count 对候选再过滤一遍，进一步缩小范围
    */
-  const { avg, fixedCount, totalSlots, remain } = options;
+  const { avg, fixedCount, totalSlots, remain, upperBound } = options;
 
   if (Number.isFinite(fixedCount)) {
     return [fixedCount as number].filter((value) => value >= 0);
   }
 
   if (!Number.isFinite(avg)) {
-    return [];
+    // 允许只靠“平均价值”来反推数量（用四舍五入规则）
+    if (!Number.isFinite(options.avgValue)) {
+      return [];
+    }
   }
 
-  const maxCount = Math.max(remain ?? 0, 40);
-  let candidates = getPossibleCounts(avg as number, 'truncate', maxCount);
+  const maxCount = Math.max(remain ?? 0, upperBound ?? 0, 40);
+  let candidates: number[] = [];
+
+  if (Number.isFinite(avg)) {
+    candidates = getPossibleCounts(avg as number, 'truncate', maxCount);
+  }
+
+  if (Number.isFinite(options.avgValue)) {
+    const byValue = getPossibleCounts(options.avgValue as number, 'round', maxCount);
+    candidates = candidates.length === 0 ? byValue : candidates.filter((v) => byValue.includes(v));
+  }
 
   if (Number.isFinite(remain)) {
     candidates = candidates.filter((value) => value <= (remain as number));
   }
+  if (Number.isFinite(upperBound)) {
+    candidates = candidates.filter((value) => value <= (upperBound as number));
+  }
 
-  if (Number.isFinite(totalSlots)) {
+  if (Number.isFinite(avg) && Number.isFinite(totalSlots)) {
     candidates = candidates.filter((count) =>
       matchesTruncatedAverage(avg as number, count, totalSlots as number),
     );
@@ -204,7 +251,18 @@ function getColorCandidates(options: {
   return candidates;
 }
 
-function buildValidCombos(remain: number | null, orangeList: number[], purpleList: number[]): ValueCombo[] {
+function buildValidCombos(
+  remain: number | null,
+  orangeList: number[],
+  purpleList: number[],
+  options: {
+    orangeAvgValue?: number;
+    purpleAvgValue?: number;
+    redUnitValue: number;
+    orangeUnitValue: number;
+    purpleUnitValue: number;
+  },
+): ValueCombo[] {
   /**
    * 枚举所有合法 (橙,紫,红) 组合：
    * - 红由 remain - 橙 - 紫 唯一确定
@@ -212,14 +270,16 @@ function buildValidCombos(remain: number | null, orangeList: number[], purpleLis
    *
    * 价值估算：
    * - 红：150,000 / 个
-   * - 橙：40,000 / 个
-   * - 紫：当前不计价（可按你的游戏理解在未来补充）
+   * - 橙：若提供平均价值则按“平均价值×数量”精确算，否则按 30,000 / 个
+   * - 紫：若提供平均价值则按“平均价值×数量”精确算，否则按 10,000 / 个
    */
   if (!Number.isFinite(remain) || (remain as number) < 0 || orangeList.length === 0 || purpleList.length === 0) {
     return [];
   }
 
   const combos: ValueCombo[] = [];
+
+  const { orangeAvgValue, purpleAvgValue, redUnitValue, orangeUnitValue, purpleUnitValue } = options;
 
   for (const orange of orangeList) {
     for (const purple of purpleList) {
@@ -232,7 +292,10 @@ function buildValidCombos(remain: number | null, orangeList: number[], purpleLis
         orange,
         purple,
         red,
-        value: red * RED_VALUE + orange * ORANGE_VALUE,
+        value:
+          red * redUnitValue +
+          resolveColorValue(orange, orangeAvgValue, orangeUnitValue) +
+          resolveColorValue(purple, purpleAvgValue, purpleUnitValue),
       });
     }
   }
@@ -240,30 +303,75 @@ function buildValidCombos(remain: number | null, orangeList: number[], purpleLis
   return combos;
 }
 
-function getAverageValue(combos: ValueCombo[]): number | null {
+function resolveColorValue(count: number, avgValue: number | undefined, fallbackUnitValue: number): number {
   /**
-   * 对所有合法组合的价值求算术平均，作为“期望价值”。
-   * 注意：这里是“每个合法组合等权”，并没有引入概率模型。
+   * 估值优先级：
+   * 1) 若用户提供了平均价值（并且当前组合数量已知），直接按“平均价值 × 数量”计算总价值
+   * 2) 否则使用固定单价估算
+   */
+  if (Number.isFinite(avgValue)) {
+    // 平均价值输入按“普通单位”处理（不是“万”），因此不再额外乘 10000。
+    return Math.round((avgValue as number) * count);
+  }
+  return count * fallbackUnitValue;
+}
+
+function getExpectedCombo(combos: ValueCombo[]): ValueCombo | null {
+  /**
+   * 期望价值估计（启发式）：
+   * - 目标1：紫色约占(红+橙+紫)的 2/3
+   * - 目标2：在(红+橙)中，橙色约占 2/3
+   * - 在所有合法组合里，选“最接近上述两个比例目标”的组合，取其价值作为期望估计
+   *
+   * 这样比“所有组合等权平均”更贴近你给出的经验分布。
    */
   if (combos.length === 0) {
     return null;
   }
 
-  const totalValue = combos.reduce((sum, item) => sum + item.value, 0);
-  return totalValue / combos.length;
+  const targetPurpleRatio = 2 / 3;
+  const targetOrangeAmongRO = 2 / 3;
+  let best: ValueCombo | null = null;
+  let bestScore = Number.POSITIVE_INFINITY;
+
+  for (const combo of combos) {
+    const total = combo.red + combo.orange + combo.purple;
+    if (total <= 0) {
+      continue;
+    }
+
+    const purpleRatio = combo.purple / total;
+    const redOrange = combo.red + combo.orange;
+    // 红橙都为 0 时，该指标视为最差，避免被误选。
+    const orangeAmongRO = redOrange > 0 ? combo.orange / redOrange : -1;
+
+    const score =
+      Math.abs(purpleRatio - targetPurpleRatio) * 2 +
+      Math.abs(orangeAmongRO - targetOrangeAmongRO);
+
+    if (score < bestScore) {
+      bestScore = score;
+      best = combo;
+      continue;
+    }
+
+    // 若接近程度相同，保留先遇到的（在固定输入下结果稳定）。
+  }
+
+  return best;
 }
 
 function pickSamples(sortedCombos: ValueCombo[]): ValueCombo[] {
   /**
    * 从按价值排序后的合法组合中抽取少量样例，方便 UI 展示：
-   * - 若组合 <= 5：全展示
-   * - 否则：展示 min / 25% / 50% / 75% / max
+   * - 若组合 <= 7：全展示
+   * - 否则：按价值从低到高等间隔抽样 7 个
    */
-  if (sortedCombos.length <= 5) {
+  if (sortedCombos.length <= 7) {
     return sortedCombos;
   }
 
-  const indexes = [0, 0.25, 0.5, 0.75, 1].map((percent) =>
+  const indexes = [0, 1 / 6, 2 / 6, 3 / 6, 4 / 6, 5 / 6, 1].map((percent) =>
     Math.min(sortedCombos.length - 1, Math.floor((sortedCombos.length - 1) * percent)),
   );
 

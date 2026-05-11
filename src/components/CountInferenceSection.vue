@@ -29,16 +29,9 @@ function parseAverageInputStrict(raw: string): ParseAvgResult {
     return { ok: false, message: '请输入数值。' };
   }
 
-  // 仅「两位整数」视为简写 0.xx；三位及以上纯数字容易误触，要求写成小数
-  if (/^\d{3,}$/.test(t)) {
-    return {
-      ok: false,
-      message: '简写只支持两位整数（如 66 表示 0.66）。三位及以上请带小数点书写，例如 0.688。',
-    };
-  }
-
-  if (/^\d{2}$/.test(t)) {
-    return { ok: true, value: Number.parseInt(t, 10) / 100 };
+  // 统一要求显式写小数点，避免 87 被误判为 0.87
+  if (/^\d+$/.test(t) && !t.includes('.')) {
+    return { ok: false, message: '请显式输入两位小数（例如 0.87），不要只输入整数 87。' };
   }
 
   if (!/^-?(?:\d+\.\d+|\d+\.|\d+|\.\d+)$/.test(t)) {

@@ -90,7 +90,7 @@ function toggleTheme(): void {
     </div>
 
     <section class="panel module-shell">
-      <div v-if="activeTab === 'victor'" class="tab-content">
+      <div v-show="activeTab === 'victor'" class="tab-content">
         <h2>维克托（老头）</h2>
         <p class="module-intro">用于根据显示出来的两位小数平均值，反推出可能数量。</p>
         <CountInferenceSection
@@ -108,11 +108,11 @@ function toggleTheme(): void {
         </p>
       </div>
 
-      <div v-else-if="activeTab === 'ahmed'" class="tab-content">
+      <div v-show="activeTab === 'ahmed'" class="tab-content">
         <GameEstimatorSection />
       </div>
 
-      <div v-else-if="activeTab === 'about'" class="tab-content tab-content--about">
+      <div v-show="activeTab === 'about'" class="tab-content tab-content--about">
         <AboutSection />
       </div>
     </section>

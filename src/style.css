@@ -1,0 +1,582 @@
+:root {
+  font-family: Arial, sans-serif;
+  line-height: 1.6;
+  /* 浅色：整体偏灰，减轻刺眼白；托盘（主面板）与页面底有明显层级 */
+  color: #1a1d24;
+  background: #d4d8e0;
+  --bg-page: #d4d8e0;
+  --text-main: #1a1d24;
+  --text-sub: #4a5568;
+  --panel-bg: #e9ecf2;
+  --panel-border: #c5cad6;
+  --panel-shadow: 0 2px 10px rgba(15, 23, 42, 0.07);
+  --sub-panel-bg: #dfe4ec;
+  --result-bg: #e2e7ef;
+  --input-bg: #f4f6fa;
+  --input-border: #b8c0ce;
+  --tab-bg: #ccd1dc;
+  --tab-text: #2d3340;
+  --tab-active-bg: #e9ecf2;
+  --tab-active-text: #0b57d0;
+  --primary-btn-bg: #0b57d0;
+  --primary-btn-bg-hover: #0946aa;
+  --primary-btn-border: #0b57d0;
+  --primary-btn-text: #ffffff;
+  --theme-btn-bg: #eef3ff;
+  --theme-btn-text: #0b3d8f;
+  --theme-btn-border: #bfd4ff;
+  --warn-text: #9a3412;
+  --warn-bg: rgba(254, 243, 199, 0.55);
+  --qty-red: #b91c1c;
+  --qty-orange: #c2410c;
+  --qty-purple: #6d28d9;
+}
+
+:root[data-theme='dark'] {
+  /* 深色主题：偏深蓝灰，比上一版整体再压一层，但仍避免纯黑 */
+  color: #cfe0ff;
+  background: #040a14;
+  --panel-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
+  --bg-page: #040a14;
+  --text-main: #d8e8ff;
+  --text-sub: #8fa8cc;
+  --panel-bg: #071525;
+  --panel-border: #142a47;
+  --sub-panel-bg: #0b1c30;
+  --result-bg: #0d2038;
+  --input-bg: #0f243d;
+  --input-border: #2a4a73;
+  --tab-bg: #0a1c32;
+  --tab-text: #aac6ea;
+  --tab-active-bg: #071525;
+  --tab-active-text: #7eb8ff;
+  --primary-btn-bg: #2563a8;
+  --primary-btn-bg-hover: #2f74c4;
+  --primary-btn-border: #3d7fbf;
+  --primary-btn-text: #f0f6ff;
+  --theme-btn-bg: #0f2842;
+  --theme-btn-text: #bcd6ff;
+  --theme-btn-border: #2a5078;
+  --warn-text: #fcd34d;
+  --warn-bg: rgba(120, 53, 15, 0.25);
+  --qty-red: #f87171;
+  --qty-orange: #fb923c;
+  --qty-purple: #c4b5fd;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg-page);
+  color: var(--text-main);
+}
+
+#app {
+  padding: 20px;
+  min-height: 100vh;
+}
+
+.container {
+  max-width: 980px;
+  margin: 0 auto;
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+h1 {
+  margin: 0 0 12px;
+  font-size: clamp(26px, 3vw, 34px);
+}
+
+h2 {
+  margin: 0 0 14px;
+}
+
+h3 {
+  margin: 0 0 12px;
+}
+
+.module-panel {
+  margin-bottom: 16px;
+}
+
+.module-shell {
+  padding: 0 16px 16px;
+}
+
+.tab-bar {
+  display: flex;
+  gap: 8px;
+  padding: 0 0 0 12px;
+  margin-top: 4px;
+  margin-bottom: -1px;
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+}
+
+/* 桌面：页签显示全名 */
+.tab-label--short {
+  display: none;
+}
+
+.tab-label--long {
+  display: inline;
+}
+
+.tab-btn {
+  border: 1px solid var(--input-border);
+  background: var(--tab-bg);
+  color: var(--tab-text);
+  border-radius: 10px 10px 0 0;
+  padding: 8px 14px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.tab-btn.active {
+  background: var(--tab-active-bg);
+  color: var(--tab-active-text);
+  border-color: var(--panel-border);
+  border-bottom-color: var(--tab-active-bg);
+  font-weight: 700;
+}
+
+/* 仅窄屏手机：短标题 + 页签左对齐。电脑与平板仍为完整标题 + 默认左对齐 */
+@media (max-width: 640px) {
+  .tab-label--short {
+    display: inline;
+  }
+
+  .tab-label--long {
+    display: none;
+  }
+
+  .tab-bar {
+    justify-content: flex-start;
+    padding-left: 0;
+    overflow-x: visible;
+  }
+}
+
+.tab-content {
+  padding-top: 12px;
+}
+
+.inner-section {
+  margin-bottom: 12px;
+}
+
+.inner-section:last-child {
+  margin-bottom: 0;
+}
+
+.module-intro {
+  margin: 0 0 12px;
+  color: var(--text-sub);
+}
+
+/* 维克托整页底部脚注：更小、更淡，仅电脑端显示 */
+.victor-hint {
+  margin: 18px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--panel-border);
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text-sub);
+  opacity: 0.88;
+}
+
+.victor-hint strong {
+  color: var(--text-sub);
+  font-weight: 600;
+}
+
+@media (max-width: 768px) {
+  .victor-hint--desktop-only {
+    display: none;
+  }
+}
+
+.input-field-error {
+  margin: 0 0 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--warn-text);
+  background: var(--warn-bg);
+  border-radius: 6px;
+  border: 1px solid var(--panel-border);
+}
+
+.form-warnings {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--warn-text);
+  background: var(--warn-bg);
+  border-radius: 8px;
+  border: 1px solid var(--panel-border);
+}
+
+.form-warnings ul {
+  margin: 6px 0 0;
+  padding-left: 1.1em;
+}
+
+.form-warnings-title {
+  margin: 0;
+  font-weight: 600;
+}
+
+.result-hint-muted {
+  margin: 10px 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--text-sub);
+}
+
+.value-disclaimer {
+  margin-top: 8px;
+  margin-bottom: 10px;
+}
+
+.value-disclaimer--footer {
+  margin-top: 14px;
+  margin-bottom: 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--panel-border);
+  font-size: 12px;
+}
+
+/* 石油王结果：红/橙/紫行 — 左侧圆点 + 标题色，数字沿用正文色 */
+.qty-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 6px 0;
+}
+
+.qty-line-icon {
+  display: block;
+  width: 12px;
+  height: 12px;
+  margin-top: 0.38em;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.06);
+}
+
+.qty-line--red .qty-line-icon {
+  background: var(--qty-red);
+}
+
+.qty-line--orange .qty-line-icon {
+  background: var(--qty-orange);
+}
+
+.qty-line--purple .qty-line-icon {
+  background: var(--qty-purple);
+}
+
+.qty-line-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.qty-line-title {
+  font-weight: 700;
+}
+
+.qty-line--red .qty-line-title {
+  color: var(--qty-red);
+}
+
+.qty-line--orange .qty-line-title {
+  color: var(--qty-orange);
+}
+
+.qty-line--purple .qty-line-title {
+  color: var(--qty-purple);
+}
+
+.sample-result-line {
+  margin-bottom: 6px;
+  line-height: 1.55;
+}
+
+.sample-result-sep {
+  color: var(--text-sub);
+  margin: 0 2px;
+}
+
+/* 代表性结果：圆点 + 彩色数字（顺序：红｜橙｜紫），与上方 qty-line 圆点风格一致 */
+.sample-result-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  vertical-align: middle;
+}
+
+.sample-result-dot {
+  display: block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.06);
+}
+
+.sample-result-dot--red {
+  background: var(--qty-red);
+}
+
+.sample-result-dot--orange {
+  background: var(--qty-orange);
+}
+
+.sample-result-dot--purple {
+  background: var(--qty-purple);
+}
+
+.sample-qty-num {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.sample-qty-num--red {
+  color: var(--qty-red);
+}
+
+.sample-qty-num--orange {
+  color: var(--qty-orange);
+}
+
+.sample-qty-num--purple {
+  color: var(--qty-purple);
+}
+
+.panel {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 16px;
+  box-shadow: var(--panel-shadow, none);
+}
+
+.sub-panel {
+  background: var(--sub-panel-bg);
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 12px;
+  align-items: center;
+}
+
+.inline-form {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+input {
+  border: 1px solid var(--input-border);
+  background: var(--input-bg);
+  color: var(--text-main);
+  border-radius: 6px;
+  padding: 6px 8px;
+  min-width: 120px;
+}
+
+button {
+  border: 1px solid var(--primary-btn-border);
+  background: var(--primary-btn-bg);
+  color: var(--primary-btn-text);
+  border-radius: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+button:hover {
+  background: var(--primary-btn-bg-hover);
+}
+
+.theme-toggle {
+  border-color: var(--theme-btn-border);
+  background: var(--theme-btn-bg);
+  color: var(--theme-btn-text);
+  font-size: 14px;
+}
+
+.theme-toggle:hover {
+  background: var(--theme-btn-bg);
+  filter: brightness(1.06);
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* 覆盖全局 button:hover，避免主题按钮在浅色主题下变成白字蓝底看不清 */
+.header-actions .theme-toggle:hover {
+  background: var(--theme-btn-bg);
+  color: var(--theme-btn-text);
+  filter: brightness(1.06);
+}
+
+.result-box {
+  margin-top: 12px;
+  background: var(--result-bg);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+
+hr {
+  border: 0;
+  border-top: 1px solid var(--panel-border);
+  margin: 12px 0;
+}
+
+.about-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 12px 0;
+}
+
+/* 说明区截图：相对初版 500px 宽约 75%（375px）；宽屏再 ×0.75 约 281px */
+.about-images figure {
+  margin: 0;
+  width: min(375px, 92vw, 100%);
+  max-width: 100%;
+}
+
+@media (min-width: 1025px) {
+  .about-images figure {
+    width: min(281px, 52vw, 100%);
+  }
+}
+
+.about-images img {
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+  border: 1px solid var(--panel-border);
+  display: block;
+}
+
+.about-image-placeholder {
+  max-width: 100%;
+  padding: 24px;
+  border-radius: 8px;
+  border: 1px dashed var(--panel-border);
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-sub);
+}
+
+.about-images figcaption {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--text-sub);
+}
+
+@media (max-width: 1024px) {
+  #app {
+    padding: 16px;
+  }
+
+  .container {
+    max-width: 860px;
+  }
+
+  /* 平板与手机：标题与主题同一行，主题靠右 */
+  .page-header {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px 12px;
+    margin-bottom: 12px;
+  }
+
+  .page-header h1 {
+    flex: 1 1 auto;
+    min-width: 0;
+    margin-bottom: 0;
+  }
+
+  .header-actions {
+    margin-left: auto;
+  }
+}
+
+@media (max-width: 768px) {
+  :root {
+    font-size: 17px;
+  }
+
+  #app {
+    padding: 14px;
+  }
+
+  .tab-btn {
+    padding: 10px 14px;
+    font-size: 15px;
+  }
+
+  .panel {
+    padding: 14px;
+  }
+
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .inline-form {
+    flex-wrap: wrap;
+  }
+
+  input {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  h1 {
+    font-size: 28px;
+    margin-bottom: 8px;
+  }
+
+  h2 {
+    font-size: 22px;
+  }
+
+  .theme-toggle {
+    font-size: 13px;
+    padding: 6px 10px;
+  }
+}

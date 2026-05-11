@@ -13,6 +13,11 @@
       本项目由 <strong>B 站：tim561</strong> 制作，纯前端网页：<strong>非营利、无需登录</strong>，计算在浏览器内完成。
       若担心安全可自行查看打包后的脚本或用信任的 <strong>AI</strong> 协助通读，确认没有隐藏上传。
     </p>
+    <p>
+      源码仓库为 <strong>公开（Public）</strong>，便于核对与监督：
+      <a href="https://github.com/xgan1/bidkingcalc-vue" target="_blank" rel="noopener noreferrer"
+        >https://github.com/xgan1/bidkingcalc-vue</a>。
+    </p>
 
     <h3>金色和橙色统一叫橙色</h3>
     <p>同一档品质，界面写法不同；下文与计算器统称<strong>橙色</strong>。</p>

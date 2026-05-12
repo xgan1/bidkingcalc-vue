@@ -39,7 +39,7 @@ const initialForm: FormState = {
 
 const form = reactive<FormState>({ ...initialForm });
 
-/** 清零模板：可数字段留空，单价与期望比保留默认。 */
+/** 清零模板：局内读数字段清空；估值单价与期望占比五栏保留当前值（不随清零重置）。 */
 const clearedForm: FormState = {
   totalItems: '',
   wgSlots: '',
@@ -53,11 +53,6 @@ const clearedForm: FormState = {
   purpleTotalSlots: '',
   purpleAvg: '',
   purpleAvgValue: '',
-  redUnitValue: `${DEFAULT_RED_UNIT_VALUE}`,
-  orangeUnitValue: `${DEFAULT_ORANGE_UNIT_VALUE}`,
-  purpleUnitValue: `${DEFAULT_PURPLE_UNIT_VALUE}`,
-  expectedPurpleRatio: `${DEFAULT_EXPECTED_RATIO}`,
-  expectedOrangeAmongRORatio: `${DEFAULT_EXPECTED_RATIO}`,
 };
 
 const result = computed(() => estimateGame(getEstimatorInput(form)));

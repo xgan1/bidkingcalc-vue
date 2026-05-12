@@ -371,6 +371,10 @@ function formatCountCandidates(values: number[]): string {
         <strong>价值粗算（仅供参考）：</strong>按简化单价——<strong>红色 150000/件、橙色 30000/件、紫色 10000/件</strong>；若填写了橙/紫平均价值，则对应颜色按“平均价值 × 数量”直接计入。
         局里<strong>实际价格会波动</strong>，上述区间<strong>勿当作精确估值或成交价</strong>。
       </p>
+      <p class="result-hint-muted">
+        上述默认单价大致按<strong>别墅区</strong>常见水平预设。作者认为石油王在当前的<strong>沉船、拍卖</strong>等环境下<strong>不一定好发挥</strong>：红色特别多时，往往<strong>仅靠已知信息仍不够</strong>。
+        若仍要在这些环境使用，请在下方<strong>自行调高红色单价等</strong>（例如红色约<strong>20 万/件</strong>），并酌情调整期望占比。
+      </p>
       <div class="sub-panel">
         <h3>估值单价设置（普通单位）</h3>
         <div class="grid">

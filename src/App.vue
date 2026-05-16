@@ -98,7 +98,8 @@ function toggleTheme(): void {
           mode="round"
         />
         <p class="victor-hint victor-hint--desktop-only">
-          平均格数：按两位小数显示、<strong>第三位起直接舍去</strong>（截断）后反推。平均价值：按<strong>两位小数四舍五入</strong>显示后反推。
+          请<strong>按局内写出的小数位原样填写</strong>（<strong>0.9</strong> 与 <strong>0.90</strong>、<strong>0.3</strong> 与 <strong>0.30</strong> 规则不同）。
+          对 1～40 逐个检验：须能在截断/四舍五入规则下还原该平均值；若只写出<strong>一位</strong>小数，还须 <strong>平均×件数为整数</strong>（如 <strong>0.3</strong> 不会有 <strong>15</strong>，<strong>0.6</strong> 可有 <strong>5</strong>）。
         </p>
       </div>
 

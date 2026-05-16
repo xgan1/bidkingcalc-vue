@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, reactive } from 'vue';
-import type { GameEstimatorInput } from '../types/calculator';
-import { estimateGame } from '../utils/calculators';
+import { computed, reactive, ref } from 'vue';
+import type { GameEstimatorInput, ValueCombo } from '../types/calculator';
+import { estimateGame, gridSlotValueFromCombo } from '../utils/calculators';
 import {
   isOptionalDecimalString,
   isOptionalNonNegativeIntString,
@@ -14,32 +14,56 @@ type FormState = Record<string, string>;
 const DEFAULT_RED_UNIT_VALUE = 150000;
 const DEFAULT_ORANGE_UNIT_VALUE = 30000;
 const DEFAULT_PURPLE_UNIT_VALUE = 10000;
+const DEFAULT_RED_GRID_UNIT_VALUE = 50000;
+const DEFAULT_ORANGE_GRID_UNIT_VALUE = 10000;
+const DEFAULT_PURPLE_GRID_UNIT_VALUE = 3000;
 const DEFAULT_EXPECTED_RATIO = 0.66;
 
-/** 与首版静态 HTML 演示数据对齐，便于回归对照。 */
+/** 回归测试用例（别墅区常见一局）；亦作页面默认演示数据。 */
 const initialForm: FormState = {
-  totalItems: '48',
-  wgSlots: '17',
-  wgAvg: '2.12',
-  orangeAvg: '0.88',
+  totalItems: '28',
+  wgSlots: '13',
+  wgAvg: '1.62',
+  orangeAvg: '6.25',
   orangeAvgValue: '',
-  blueCount: '13',
+  blueCount: '5',
   orangeFixedCount: '',
   orangeTotalSlots: '',
   purpleFixedCount: '',
   purpleTotalSlots: '',
-  purpleAvg: '0.75',
-  purpleAvgValue: '',
+  purpleAvg: '3.55',
+  purpleAvgValue: '9478.44',
+  collectionTotalGridSlots: '93',
+  collectionAvgGrid: '',
+  blueCollectionTotalGridSlots: '',
+  blueCollectionAvgGrid: '2.4',
   redUnitValue: `${DEFAULT_RED_UNIT_VALUE}`,
   orangeUnitValue: `${DEFAULT_ORANGE_UNIT_VALUE}`,
   purpleUnitValue: `${DEFAULT_PURPLE_UNIT_VALUE}`,
+  redGridUnitValue: `${DEFAULT_RED_GRID_UNIT_VALUE}`,
+  orangeGridUnitValue: `${DEFAULT_ORANGE_GRID_UNIT_VALUE}`,
+  purpleGridUnitValue: `${DEFAULT_PURPLE_GRID_UNIT_VALUE}`,
   expectedPurpleRatio: `${DEFAULT_EXPECTED_RATIO}`,
   expectedOrangeAmongRORatio: `${DEFAULT_EXPECTED_RATIO}`,
 };
 
 const form = reactive<FormState>({ ...initialForm });
 
-/** 清零模板：局内读数字段清空；估值单价与期望占比五栏保留当前值（不随清零重置）。 */
+/** 「第四回合（可选）」格数推断区默认折叠。 */
+const otherOptionsOpen = ref(false);
+
+const hasOtherGridOptionsFilled = computed(() =>
+  (
+    [
+      form.collectionTotalGridSlots,
+      form.collectionAvgGrid,
+      form.blueCollectionTotalGridSlots,
+      form.blueCollectionAvgGrid,
+    ] as const
+  ).some((s) => s.trim() !== ''),
+);
+
+/** 清零模板：局内读数字段清空；每件/每格单价与期望占比保留当前值（不随清零重置）。 */
 const clearedForm: FormState = {
   totalItems: '',
   wgSlots: '',
@@ -53,9 +77,23 @@ const clearedForm: FormState = {
   purpleTotalSlots: '',
   purpleAvg: '',
   purpleAvgValue: '',
+  collectionTotalGridSlots: '',
+  collectionAvgGrid: '',
+  blueCollectionTotalGridSlots: '',
+  blueCollectionAvgGrid: '',
 };
 
 const result = computed(() => estimateGame(getEstimatorInput(form)));
+
+const gridUnitPrices = computed(() => ({
+  red: toInt(form.redGridUnitValue) ?? DEFAULT_RED_GRID_UNIT_VALUE,
+  orange: toInt(form.orangeGridUnitValue) ?? DEFAULT_ORANGE_GRID_UNIT_VALUE,
+  purple: toInt(form.purpleGridUnitValue) ?? DEFAULT_PURPLE_GRID_UNIT_VALUE,
+}));
+
+function formatGridSampleWan(item: ValueCombo): string {
+  return formatWan(gridSlotValueFromCombo(item, gridUnitPrices.value));
+}
 const remainDisplay = computed(() => {
   if (result.value.remain !== null) {
     return `${result.value.remain}`;
@@ -66,10 +104,40 @@ const remainDisplay = computed(() => {
   return '未知';
 });
 
-/** min===max 时隐藏「价值范围」行。 */
+/** 无估值区间时不展示；未填第四回合时只要有件数估值就显示范围（与改版前一致，不因只有一种组合而隐藏）。 */
 const hideValueRangeLine = computed(() => {
   const r = result.value;
-  return r.minValue !== null && r.maxValue !== null && r.minValue === r.maxValue;
+  if (r.minValue === null || r.maxValue === null) {
+    return true;
+  }
+  if (!r.gridSlotInferenceActive) {
+    return false;
+  }
+  return r.minValue === r.maxValue;
+});
+
+function combosSameCount(a: ValueCombo, b: ValueCombo): boolean {
+  return a.red === b.red && a.orange === b.orange && a.purple === b.purple;
+}
+
+const valueRangeCountsDiffer = computed(() => {
+  const min = result.value.minValueCombo;
+  const max = result.value.maxValueCombo;
+  if (!min || !max) {
+    return false;
+  }
+  return !combosSameCount(min, max);
+});
+
+const gridRangeSlotsDiffer = computed(() => {
+  const min = result.value.gridMinCombo;
+  const max = result.value.gridMaxCombo;
+  if (!min || !max) {
+    return false;
+  }
+  return (
+    min.redGridSlots !== max.redGridSlots || min.orangeGridSlots !== max.orangeGridSlots
+  );
 });
 
 const FIELD_LABELS = {
@@ -85,16 +153,46 @@ const FIELD_LABELS = {
   orangeTotalSlots: '橙色总格数（可选）',
   purpleFixedCount: '紫色确定数量（可选）',
   purpleTotalSlots: '紫色总格数（可选）',
-  redUnitValue: '红色单价',
-  orangeUnitValue: '橙色单价',
-  purpleUnitValue: '紫色单价',
+  redUnitValue: '红色每件单价',
+  orangeUnitValue: '橙色每件单价',
+  purpleUnitValue: '紫色每件单价',
+  redGridUnitValue: '红色每格单价',
+  orangeGridUnitValue: '橙色每格单价',
+  purpleGridUnitValue: '紫色每格单价',
   expectedPurpleRatio: '紫占比目标',
   expectedOrangeAmongRORatio: '橙占比目标',
+  collectionTotalGridSlots: '总藏品总格数（道具）',
+  collectionAvgGrid: '总藏品平均格数（可选）',
+  blueCollectionTotalGridSlots: '蓝色藏品总格数（可选）',
+  blueCollectionAvgGrid: '蓝色藏品平均格数（技能）',
 } as const satisfies Record<string, string>;
 
 const estimatorWarnings = computed(() => {
   const w: string[] = [];
   const f = form;
+
+  const ctg = f.collectionTotalGridSlots.trim();
+  const cag = f.collectionAvgGrid.trim();
+  const bctg = f.blueCollectionTotalGridSlots.trim();
+  const bcag = f.blueCollectionAvgGrid.trim();
+  if (
+    ctg !== '' &&
+    isOptionalNonNegativeIntString(f.collectionTotalGridSlots) &&
+    cag !== '' &&
+    isOptionalDecimalString(f.collectionAvgGrid) &&
+    Number.isFinite(Number.parseFloat(cag))
+  ) {
+    w.push('「总藏品总格数」与「总藏品平均格数」请只填其一。');
+  }
+  if (
+    bctg !== '' &&
+    isOptionalNonNegativeIntString(f.blueCollectionTotalGridSlots) &&
+    bcag !== '' &&
+    isOptionalDecimalString(f.blueCollectionAvgGrid) &&
+    Number.isFinite(Number.parseFloat(bcag))
+  ) {
+    w.push('「蓝色藏品总格数」与「蓝色藏品平均格数」请只填其一。');
+  }
 
   if (f.totalItems.trim() !== '' && !isRequiredNonNegativeIntString(f.totalItems)) {
     w.push(`「${FIELD_LABELS.totalItems}」须填写非负整数（仅数字）。`);
@@ -103,19 +201,37 @@ const estimatorWarnings = computed(() => {
     w.push(`「${FIELD_LABELS.blueCount}」须填写非负整数（仅数字）。`);
   }
 
-  (['wgSlots', 'wgAvg', 'orangeAvg', 'purpleAvg', 'orangeAvgValue', 'purpleAvgValue'] as const).forEach((key) => {
+  (['wgSlots', 'wgAvg', 'orangeAvg', 'purpleAvg', 'orangeAvgValue', 'purpleAvgValue', 'collectionAvgGrid', 'blueCollectionAvgGrid'] as const).forEach((key) => {
     if (!isOptionalDecimalString(f[key])) {
       w.push(`「${FIELD_LABELS[key]}」须为合法数字（可含小数点）；不要输入字母或多余符号。`);
     }
   });
 
-  (['orangeFixedCount', 'orangeTotalSlots', 'purpleFixedCount', 'purpleTotalSlots'] as const).forEach((key) => {
+  (
+    [
+      'orangeFixedCount',
+      'orangeTotalSlots',
+      'purpleFixedCount',
+      'purpleTotalSlots',
+      'collectionTotalGridSlots',
+      'blueCollectionTotalGridSlots',
+    ] as const
+  ).forEach((key) => {
     if (!isOptionalNonNegativeIntString(f[key])) {
       w.push(`「${FIELD_LABELS[key]}」要么留空，要么填非负整数。`);
     }
   });
 
-  (['redUnitValue', 'orangeUnitValue', 'purpleUnitValue'] as const).forEach((key) => {
+  (
+    [
+      'redUnitValue',
+      'orangeUnitValue',
+      'purpleUnitValue',
+      'redGridUnitValue',
+      'orangeGridUnitValue',
+      'purpleGridUnitValue',
+    ] as const
+  ).forEach((key) => {
     if (f[key].trim() !== '' && !isRequiredNonNegativeIntString(f[key])) {
       w.push(`「${FIELD_LABELS[key]}」须填写非负整数（仅数字）。`);
     }
@@ -146,20 +262,39 @@ function getEstimatorInput(currentForm: FormState): GameEstimatorInput {
     wgSlots: toFloat(currentForm.wgSlots),
     wgAvg: toFloat(currentForm.wgAvg),
     orangeAvg: toFloat(currentForm.orangeAvg),
+    orangeAvgStr: trimmedFieldRaw(currentForm.orangeAvg),
     orangeAvgValue: toFloat(currentForm.orangeAvgValue),
+    orangeAvgValueStr: trimmedFieldRaw(currentForm.orangeAvgValue),
     blueCount: toInt(currentForm.blueCount),
     orangeFixedCount: toInt(currentForm.orangeFixedCount),
     orangeTotalSlots: toInt(currentForm.orangeTotalSlots),
     purpleFixedCount: toInt(currentForm.purpleFixedCount),
     purpleTotalSlots: toInt(currentForm.purpleTotalSlots),
     purpleAvg: toFloat(currentForm.purpleAvg),
+    purpleAvgStr: trimmedFieldRaw(currentForm.purpleAvg),
     purpleAvgValue: toFloat(currentForm.purpleAvgValue),
+    purpleAvgValueStr: trimmedFieldRaw(currentForm.purpleAvgValue),
+    collectionTotalGridSlots: toInt(currentForm.collectionTotalGridSlots),
+    collectionAvgGridSlots: toFloat(currentForm.collectionAvgGrid),
+    collectionAvgGridSlotsStr: trimmedFieldRaw(currentForm.collectionAvgGrid),
+    blueCollectionTotalGridSlots: toInt(currentForm.blueCollectionTotalGridSlots),
+    blueCollectionAvgGridSlots: toFloat(currentForm.blueCollectionAvgGrid),
+    blueCollectionAvgGridSlotsStr: trimmedFieldRaw(currentForm.blueCollectionAvgGrid),
     redUnitValue: toInt(currentForm.redUnitValue) ?? DEFAULT_RED_UNIT_VALUE,
     orangeUnitValue: toInt(currentForm.orangeUnitValue) ?? DEFAULT_ORANGE_UNIT_VALUE,
     purpleUnitValue: toInt(currentForm.purpleUnitValue) ?? DEFAULT_PURPLE_UNIT_VALUE,
+    redGridUnitValue: toInt(currentForm.redGridUnitValue) ?? DEFAULT_RED_GRID_UNIT_VALUE,
+    orangeGridUnitValue: toInt(currentForm.orangeGridUnitValue) ?? DEFAULT_ORANGE_GRID_UNIT_VALUE,
+    purpleGridUnitValue: toInt(currentForm.purpleGridUnitValue) ?? DEFAULT_PURPLE_GRID_UNIT_VALUE,
     expectedPurpleRatio: toFloat(currentForm.expectedPurpleRatio),
     expectedOrangeAmongRORatio: toFloat(currentForm.expectedOrangeAmongRORatio),
   };
+}
+
+/** 非空则返回 `trim`，否则 `undefined`（用于平均格数/价值原文精度）。 */
+function trimmedFieldRaw(s: string): string | undefined {
+  const t = s.trim();
+  return t === '' ? undefined : t;
 }
 
 /** `parseInt` 失败返回 `undefined`。 */
@@ -181,6 +316,14 @@ function formatWan(value: number | null): string {
   }
 
   return `${(value / 10000).toFixed(1)}万`;
+}
+
+/** 格数展示：无效或未推算时显示 0。 */
+function formatInfGrid(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) {
+    return '0';
+  }
+  return String(value);
 }
 
 function formatCountCandidates(values: number[]): string {
@@ -219,6 +362,7 @@ function formatCountCandidates(values: number[]): string {
     <p class="result-hint-muted">
       <strong>技能被动</strong>顺序固定：第一回合<strong>总藏品数量</strong> → 第二回合<strong>橙色平均格数</strong> → 第三回合<strong>紫色平均格数</strong>；每回合表单内<strong>技能在上、道具在下</strong>。
       三件道具常用顺序为<strong>普品均格 → 良品存量 → 普品扫描</strong>，局内可先买其中任意一件，已填项会尽量参与推算（未齐时「橙紫红总数量」可能显示<strong>上界</strong>）。
+      橙/紫<strong>平均格数、平均价值</strong>请按局内<strong>原样小数位</strong>填写（<strong>0.9</strong> 与 <strong>0.90</strong> 规则不同）；只写<strong>一位</strong>小数时，还须 <strong>平均×件数为整数</strong>（如 <strong>0.3</strong> 不会出现 <strong>15</strong>）。
     </p>
 
     <div class="sub-panel">
@@ -263,6 +407,43 @@ function formatCountCandidates(values: number[]): string {
       </div>
     </div>
 
+    <div class="sub-panel sub-panel--collapsible" :class="{ 'sub-panel--collapsible-open': otherOptionsOpen }">
+      <button
+        type="button"
+        class="collapse-trigger"
+        :aria-expanded="otherOptionsOpen"
+        aria-controls="estimator-other-options"
+        @click="otherOptionsOpen = !otherOptionsOpen"
+      >
+        <span class="collapse-trigger-main">
+          <span class="collapse-trigger-title">第四回合（可选）</span>
+          <span v-if="!otherOptionsOpen && hasOtherGridOptionsFilled" class="collapse-trigger-badge">已填写</span>
+        </span>
+        <span
+          class="collapse-chevron"
+          :class="{ 'collapse-chevron--open': otherOptionsOpen }"
+          aria-hidden="true"
+        ></span>
+      </button>
+      <div v-show="otherOptionsOpen" id="estimator-other-options" class="collapse-body">
+        <p class="result-hint-muted collapse-body-hint">
+          第四回合信息<strong>不是必买</strong>，但填齐后可在结果里看到<strong>格数：</strong>后的红、橙总格推断。
+          道具<strong>总仓储空间</strong>可读<strong>全藏品总格数</strong>；<strong>总藏品平均格数</strong>有时由<strong>场地</strong>直接给出（与总格数二选一即可）。<strong>技能</strong>可读<strong>蓝色藏品平均格数</strong>（或与蓝色总格数二选一）。
+          再与前面已填的<strong>白绿总占位</strong>等结合，往往能把<strong>红色藏品的总格数</strong>收窄到更确定的值。
+        </p>
+        <div class="grid">
+          <label>蓝色藏品平均格数（技能）</label>
+          <input v-model="form.blueCollectionAvgGrid" type="text" inputmode="decimal" autocomplete="off" />
+          <label>蓝色藏品总格数（可选）</label>
+          <input v-model="form.blueCollectionTotalGridSlots" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" />
+          <label>总藏品总格数（道具）</label>
+          <input v-model="form.collectionTotalGridSlots" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" />
+          <label>总藏品平均格数（可选）</label>
+          <input v-model="form.collectionAvgGrid" type="text" inputmode="decimal" autocomplete="off" />
+        </div>
+      </div>
+    </div>
+
     <div class="inline-form">
       <button type="button" @click="clearForm">清零</button>
     </div>
@@ -275,29 +456,109 @@ function formatCountCandidates(values: number[]): string {
     </div>
 
     <div class="result-box">
-      <p v-if="!hideValueRangeLine">
-        <strong>预估价值范围：</strong>{{ formatWan(result.minValue) }} ~ {{ formatWan(result.maxValue) }}
-      </p>
-      <p>
-        <strong>预估期望价值：</strong>{{ formatWan(result.expectedValue) }}
-        <template v-if="result.expectedCombo">
-          <span class="sample-result-sep">｜</span>
+      <div v-if="!hideValueRangeLine" class="result-value-block">
+        <p class="result-value-headline">
+          <strong>预估价值范围：</strong>{{ formatWan(result.minValue) }} ~ {{ formatWan(result.maxValue) }}
+          <span v-if="result.gridSlotInferenceActive" class="result-hint-muted result-value-headline-note">
+            （含件数估值与格数估值）
+          </span>
+        </p>
+        <p v-if="result.minValueCombo && valueRangeCountsDiffer" class="result-value-sub">
+          <span class="result-sub-tag">藏品数量</span>
+          <template v-if="result.maxValueCombo">
+            <span class="result-sub-range-label">低</span>
+            <span class="sample-result-chip" title="红色件数">
+              <span class="sample-result-dot sample-result-dot--red" aria-hidden="true"></span>
+              <span class="sample-qty-num sample-qty-num--red">{{ result.minValueCombo.red }}</span>
+            </span>
+            <span class="sample-result-chip" title="橙色件数">
+              <span class="sample-result-dot sample-result-dot--orange" aria-hidden="true"></span>
+              <span class="sample-qty-num sample-qty-num--orange">{{ result.minValueCombo.orange }}</span>
+            </span>
+            <span class="sample-result-chip" title="紫色件数">
+              <span class="sample-result-dot sample-result-dot--purple" aria-hidden="true"></span>
+              <span class="sample-qty-num sample-qty-num--purple">{{ result.minValueCombo.purple }}</span>
+            </span>
+            <span class="result-sub-range-label">高</span>
+            <span class="sample-result-chip" title="红色件数">
+              <span class="sample-result-dot sample-result-dot--red" aria-hidden="true"></span>
+              <span class="sample-qty-num sample-qty-num--red">{{ result.maxValueCombo.red }}</span>
+            </span>
+            <span class="sample-result-chip" title="橙色件数">
+              <span class="sample-result-dot sample-result-dot--orange" aria-hidden="true"></span>
+              <span class="sample-qty-num sample-qty-num--orange">{{ result.maxValueCombo.orange }}</span>
+            </span>
+            <span class="sample-result-chip" title="紫色件数">
+              <span class="sample-result-dot sample-result-dot--purple" aria-hidden="true"></span>
+              <span class="sample-qty-num sample-qty-num--purple">{{ result.maxValueCombo.purple }}</span>
+            </span>
+          </template>
+        </p>
+        <p
+          v-if="result.gridSlotInferenceActive && result.gridMinCombo && gridRangeSlotsDiffer"
+          class="result-value-sub"
+        >
+          <span class="result-sub-tag">藏品格数</span>
+          <template v-if="result.gridMaxCombo">
+            <span class="result-sub-range-label">少</span>
+            <span class="sample-result-chip" title="红色总格数">
+              <span class="sample-result-square sample-result-square--red" aria-hidden="true"></span>
+              <span class="sample-qty-num sample-qty-num--red">{{ formatInfGrid(result.gridMinCombo.redGridSlots) }}</span>
+            </span>
+            <span class="sample-result-chip" title="橙色总格数">
+              <span class="sample-result-square sample-result-square--orange" aria-hidden="true"></span>
+              <span class="sample-qty-num sample-qty-num--orange">{{ formatInfGrid(result.gridMinCombo.orangeGridSlots) }}</span>
+            </span>
+            <span class="result-sub-range-label">多</span>
+            <span class="sample-result-chip" title="红色总格数">
+              <span class="sample-result-square sample-result-square--red" aria-hidden="true"></span>
+              <span class="sample-qty-num sample-qty-num--red">{{ formatInfGrid(result.gridMaxCombo.redGridSlots) }}</span>
+            </span>
+            <span class="sample-result-chip" title="橙色总格数">
+              <span class="sample-result-square sample-result-square--orange" aria-hidden="true"></span>
+              <span class="sample-qty-num sample-qty-num--orange">{{ formatInfGrid(result.gridMaxCombo.orangeGridSlots) }}</span>
+            </span>
+          </template>
+        </p>
+      </div>
+
+      <div class="result-value-block">
+        <p class="result-value-headline">
+          <strong>预估期望价值</strong>
+        </p>
+        <p v-if="result.expectedCombo" class="result-value-sub">
+          <span class="result-sub-tag">藏品数量</span>
           <span class="sample-result-chip" title="红色件数">
             <span class="sample-result-dot sample-result-dot--red" aria-hidden="true"></span>
             <span class="sample-qty-num sample-qty-num--red">{{ result.expectedCombo.red }}</span>
           </span>
-          <span class="sample-result-sep">｜</span>
           <span class="sample-result-chip" title="橙色件数">
             <span class="sample-result-dot sample-result-dot--orange" aria-hidden="true"></span>
             <span class="sample-qty-num sample-qty-num--orange">{{ result.expectedCombo.orange }}</span>
           </span>
-          <span class="sample-result-sep">｜</span>
           <span class="sample-result-chip" title="紫色件数">
             <span class="sample-result-dot sample-result-dot--purple" aria-hidden="true"></span>
             <span class="sample-qty-num sample-qty-num--purple">{{ result.expectedCombo.purple }}</span>
           </span>
-        </template>
-      </p>
+          <span class="result-value-inline-wan">{{ formatWan(result.expectedValue) }}</span>
+        </p>
+        <p v-else class="result-value-sub">
+          <span class="result-sub-tag">藏品数量</span>
+          <span class="result-value-inline-wan">{{ formatWan(result.expectedValue) }}</span>
+        </p>
+        <p v-if="result.gridSlotInferenceActive && result.expectedGridCombo" class="result-value-sub">
+          <span class="result-sub-tag">藏品格数</span>
+          <span class="sample-result-chip" title="红色总格数">
+            <span class="sample-result-square sample-result-square--red" aria-hidden="true"></span>
+            <span class="sample-qty-num sample-qty-num--red">{{ formatInfGrid(result.expectedGridCombo.redGridSlots) }}</span>
+          </span>
+          <span class="sample-result-chip" title="橙色总格数">
+            <span class="sample-result-square sample-result-square--orange" aria-hidden="true"></span>
+            <span class="sample-qty-num sample-qty-num--orange">{{ formatInfGrid(result.expectedGridCombo.orangeGridSlots) }}</span>
+          </span>
+          <span class="result-value-inline-wan">{{ formatWan(result.expectedGridValue) }}</span>
+        </p>
+      </div>
       <hr />
       <p>
         <strong>橙紫红总数量：</strong>{{ remainDisplay }}
@@ -339,14 +600,16 @@ function formatCountCandidates(values: number[]): string {
       </p>
       <hr />
       <div>
-        <strong>代表性可能结果：</strong>
-        <p v-if="result.samples.length === 0">暂无</p>
-        <ul v-else>
+        <strong>代表性可能结果</strong>
+        <p class="result-hint-muted samples-section-hint">件数与格数无法一一对应，故分开展示。</p>
+        <p class="samples-group-title">藏品数量</p>
+        <p v-if="result.samples.length === 0" class="result-hint-muted">暂无</p>
+        <ul v-else class="samples-list">
           <li
             v-for="item in result.samples"
-            :key="`${item.orange}-${item.purple}-${item.red}`"
+            :key="`c-${item.orange}-${item.purple}-${item.red}`"
             class="sample-result-line"
-            title="依次为：红、橙、紫 件数"
+            title="红、橙、紫 件数与件数估值"
           >
             <span>价值 {{ (item.value / 10000).toFixed(1) }}万</span>
             <span class="sample-result-sep">｜</span>
@@ -366,9 +629,33 @@ function formatCountCandidates(values: number[]): string {
             </span>
           </li>
         </ul>
+        <template v-if="result.gridSlotInferenceActive">
+          <p class="samples-group-title">藏品格数</p>
+          <p v-if="result.gridSamples.length === 0" class="result-hint-muted">暂无</p>
+          <ul v-else class="samples-list">
+            <li
+              v-for="item in result.gridSamples"
+              :key="`g-${item.redGridSlots}-${item.orangeGridSlots}`"
+              class="sample-result-line"
+              title="红、橙总格与格数估值"
+            >
+              <span>格数价值 {{ formatGridSampleWan(item) }}</span>
+              <span class="sample-result-sep">｜</span>
+              <span class="sample-result-chip" title="红色总格数">
+                <span class="sample-result-square sample-result-square--red" aria-hidden="true"></span>
+                <span class="sample-qty-num sample-qty-num--red">{{ formatInfGrid(item.redGridSlots) }}</span>
+              </span>
+              <span class="sample-result-sep">｜</span>
+              <span class="sample-result-chip" title="橙色总格数">
+                <span class="sample-result-square sample-result-square--orange" aria-hidden="true"></span>
+                <span class="sample-qty-num sample-qty-num--orange">{{ formatInfGrid(item.orangeGridSlots) }}</span>
+              </span>
+            </li>
+          </ul>
+        </template>
       </div>
       <p class="result-hint-muted value-disclaimer value-disclaimer--footer">
-        <strong>价值粗算（仅供参考）：</strong>按简化单价——<strong>红色 150000/件、橙色 30000/件、紫色 10000/件</strong>；若填写了橙/紫平均价值，则对应颜色按“平均价值 × 数量”直接计入。
+        <strong>价值粗算（仅供参考）：</strong>件数按下方<strong>每件单价</strong>估算（若填写橙/紫平均价值则按“平均价值 × 数量”计入）；第四回合填齐后另给<strong>格数价值</strong>，按<strong>每格单价</strong>估算，二者相互独立，均可在下方自行修改。
         局里<strong>实际价格会波动</strong>，上述区间<strong>勿当作精确估值或成交价</strong>。
       </p>
       <p class="result-hint-muted">
@@ -377,13 +664,26 @@ function formatCountCandidates(values: number[]): string {
       </p>
       <div class="sub-panel">
         <h3>估值单价设置（普通单位）</h3>
+        <p class="result-hint-muted unit-settings-intro">
+          件数估值与格数估值分开填写；清零时这些单价会保留，便于按常打区服预设。
+        </p>
+        <p class="unit-settings-group-title">每件单价</p>
         <div class="grid">
-          <label>红色单价</label>
+          <label>红色每件单价</label>
           <input v-model="form.redUnitValue" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" />
-          <label>橙色单价</label>
+          <label>橙色每件单价</label>
           <input v-model="form.orangeUnitValue" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" />
-          <label>紫色单价</label>
+          <label>紫色每件单价</label>
           <input v-model="form.purpleUnitValue" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" />
+        </div>
+        <p class="unit-settings-group-title">每格单价</p>
+        <div class="grid">
+          <label>红色每格单价</label>
+          <input v-model="form.redGridUnitValue" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" />
+          <label>橙色每格单价</label>
+          <input v-model="form.orangeGridUnitValue" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" />
+          <label>紫色每格单价</label>
+          <input v-model="form.purpleGridUnitValue" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" />
         </div>
       </div>
 

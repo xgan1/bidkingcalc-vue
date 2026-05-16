@@ -51,9 +51,11 @@ function initialValidAvg(): number {
 
 const avgInput = ref(props.defaultValue);
 const lastValidAvg = ref(initialValidAvg());
+/** 与 `lastValidAvg` 同一次提交的平均值输入原文（区分 0.9 与 0.90）。 */
+const lastSubmittedRaw = ref(props.defaultValue);
 const fieldError = ref('');
 
-const counts = computed(() => getPossibleCounts(lastValidAvg.value, props.mode, 40));
+const counts = computed(() => getPossibleCounts(lastValidAvg.value, props.mode, 40, lastSubmittedRaw.value.trim() || undefined));
 
 const resultText = computed(() => {
   if (fieldError.value) {
@@ -74,6 +76,7 @@ function submit(): void {
   }
   fieldError.value = '';
   lastValidAvg.value = r.value;
+  lastSubmittedRaw.value = avgInput.value.trim();
 }
 </script>
 

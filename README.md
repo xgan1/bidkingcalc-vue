@@ -1,5 +1,41 @@
-# Vue 3 + TypeScript + Vite
+# 竞拍之王计算器（bidkingcalc-vue）
 
-This template should help get you started developing with Vue 3 and TypeScript in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
+面向游戏《竞拍之王》的**网页推算工具**：根据局内读数反推藏品数量、粗算局内价值。纯前端静态页，无需登录，数据不上传服务器。
 
-Learn more about the recommended Project Setup and IDE Support in the [Vue Docs TypeScript Guide](https://vuejs.org/guide/typescript/overview.html#project-setup).
+- **在线使用**：[https://bidkingcalc.com/](https://bidkingcalc.com/)（部署版，打开即用）
+- **源码**：[github.com/xgan1/bidkingcalc-vue](https://github.com/xgan1/bidkingcalc-vue)
+
+## 功能概览
+
+| 模块 | 说明 |
+|------|------|
+| **维克托（老头）** | 按局内显示的平均格数（截断）或平均价值（四舍五入）反推可能件数；区分 `0.9` 与 `0.90` 等书写精度。 |
+| **艾哈迈德（石油王）** | 三回合技能/道具 + 可选第四回合格数信息，推算橙/紫/红数量与价值区间；支持自定义每件/每格单价与期望占比。 |
+
+## 本地开发
+
+```bash
+npm install
+npm run dev      # 开发
+npm run build    # 构建 dist
+npm run test     # 回归测试（含石油王 fixture）
+```
+
+## 版本记录
+
+### v1.1（当前）
+
+- **石油王 · 第四回合（可选）**：总仓储空间 / 蓝技能等均格等，与白绿占位结合推断红、橙总格数；结果区分「藏品数量」与「藏品格数」，件数与格数估值分开展示。
+- **估值设置**：每件单价与每格单价分开可调；格数粗算默认红 5 万/格、橙 1 万/格、**紫 3 千/格**。
+- **反推精度**：平均格数、平均价值均按输入框**原文小数位**定规则；仅写一位小数时收紧件数候选（平均×件数为整数）。
+- **结果区 UI**：预估价值范围 / 预估期望价值分区展示；未填第四回合时仍按件数显示价值范围；代表性结果在有条格数信息时分为件数、格数两块。
+- **测试**：内置回归用例（`src/utils/ahmed-regression.fixture.ts`）与 `npm run test`。
+
+### v1.0
+
+- 维克托线：平均格数截断反推、平均价值四舍五入反推。
+- 石油王线：三回合表单、橙紫红组合推算、件数估值、期望占比与单价设置、代表性样本结果。
+
+## 说明
+
+本工具结果为局内信息的**数学推断与粗算**，不构成游戏内精确成交价；请结合区服与局面自行调整单价与期望参数。
